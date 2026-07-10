@@ -18,9 +18,12 @@ Key design decisions:
   - All failure paths return ``{"success": False, "error": "<reason>"}``
     rather than raising, so callers can handle errors gracefully without
     try/except boilerplate.
-  - Instagram Reels and TikTok are explicitly out of scope for MVP; any attempt
-    to pass those URLs returns a clear ``NotImplemented`` error string so
-    callers know early and can surface a useful message to the user.
+  - Instagram Reels and TikTok are out of scope for MVP and return a graceful
+    error dict (``success=False``) — not an exception.  This was a tested
+    decision: scripts/ig_spike.py confirmed that yt-dlp can pull metadata from
+    public Reels, but Instagram exposes no transcript/caption API (unlike
+    YouTube), making the path fundamentally STT-dependent and too fragile for a
+    live demo.  Roadmap item only.
 
 Public API:
   ``ingest(input_str: str) -> dict``
