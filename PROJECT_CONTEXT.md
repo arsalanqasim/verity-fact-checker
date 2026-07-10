@@ -11,10 +11,15 @@ A Slack agent (hackathon: Slack Agent Builder Challenge, "Slack Agent for Good" 
 - Deadline: July 13, 2026, 5pm PDT. Submission needs: text description, ~3 min demo video, architecture diagram, sandbox URL.
 
 ## Input priority (build and test in this order)
-1. Plain pasted text/claim — no ingestion risk, build and prove the pipeline end-to-end on this FIRST.
-2. YouTube video link — use `youtube-transcript-api` or official captions; reliable.
-3. Article/news link — use a text-extraction library (e.g. `trafilatura` or `newspaper3k`).
-4. (Stretch, isolated experiment, NOT on critical path) Instagram Reel link — test feasibility in total isolation before integrating. If unreliable, it is dropped from the live demo and mentioned only as roadmap.
+1. Plain pasted text/claim — no ingestion risk, build and prove the pipeline end-to-end on this FIRST. STATUS: implemented, tested (12 tests, all passing).
+2. YouTube video link — use `youtube-transcript-api`. STATUS: implemented, tested against a real video with real captions.
+3. Article/news link — use `trafilatura`. STATUS: implemented, tested against a real Wikipedia article.
+4. Instagram Reel link — **DECIDED: OUT OF SCOPE for MVP, not a stretch goal, do not attempt further integration.**
+
+### Instagram decision — final, not open for reconsideration mid-build
+Feasibility spike (2026-07-10, `scripts/ig_spike.py`) confirmed via yt-dlp against 3 real public Reels: video/audio download works (3/3, ~2.5s each), but Instagram exposes **no transcript or caption API of any kind** — not creator-provided, not auto-generated. This is confirmed by yt-dlp's own issue tracker (yt-dlp/yt-dlp#15874), not just our own test. Getting a spoken-word transcript would require downloading audio + running Whisper STT, adding ~10-30s latency and a ~2GB model dependency not in the current stack. The poster's text caption is available but is not a reliable stand-in for the spoken claim (often vague/hashtag-driven). yt-dlp's Instagram extractor has also broken and been silently patched multiple times over the past year — no SLA, real risk of a live-demo failure on an unfamiliar network (e.g. a judge's).
+
+**Consequence for the build:** `ingestion.py` already returns a clean out-of-scope error for Instagram/TikTok URLs — this is correct and final, not a placeholder. Do not add Whisper, audio download, or any Instagram-specific extraction code during this hackathon. If asked, roadmap language is: "tested and understood, scoped out deliberately to protect demo reliability, clear integration path documented for post-hackathon."
 
 ## Corrected technology mapping (do not use RTS as a web search substitute)
 - **MCP server integration (core)** — external verification via a web-search MCP server (Brave Search MCP to start). This is the actual fact-finding mechanism.

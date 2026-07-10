@@ -30,14 +30,14 @@ This is the part that gets demoed and must not fail in the judges' sandbox. Kept
 
 | Input type | Included in MVP | Why |
 |---|---|---|
-| YouTube video link | Yes | Reliable public transcript/caption access |
-| Plain article / news link | Yes | Reliable text extraction, no scraping fragility |
-| Plain pasted text/claim (no link) | Yes | Zero ingestion risk, fastest to build, good fallback demo path |
+| YouTube video link | Yes — implemented, tested | Reliable public transcript/caption access |
+| Plain article / news link | Yes — implemented, tested | Reliable text extraction, no scraping fragility |
+| Plain pasted text/claim (no link) | Yes — implemented, tested | Zero ingestion risk, fastest to build, good fallback demo path |
 | Twitter/X post link | Stretch — build if time allows | Moderate reliability |
-| Instagram Reel link | Stretch, demo-only if working | Highest risk: no public API, scraping-dependent, can break without warning |
+| Instagram Reel link | **Decided OUT — not a stretch goal** | Feasibility-tested (2026-07-10): file download works, but Instagram has no transcript/caption API of any kind. A real transcript would need audio download + Whisper STT (~10-30s added latency, ~2GB model dependency) — out of proportion for the time available, and the extractor has a history of breaking without warning. Confirmed against yt-dlp's own issue tracker, not just internal testing. |
 | TikTok link | Out of scope for MVP | Same risk profile as IG, not worth doubling the risk surface |
 
-**Rule for the team:** the Instagram Reel path gets attempted first, on day one, in isolation, before any agent logic is built around it. If it isn't reliably working by an internally agreed checkpoint, it is demoted to "shown as a bonus if it happens to work" and the actual demo script leads with YouTube/article/text instead. The pitch narrative ("this scales to any content type, including the messiest one") stays intact either way — Instagram is the stretch example, not the foundation.
+**Resolved:** the Instagram feasibility spike ran on day one as planned. Result: technically partially possible, practically not worth the risk or build time this MVP has. This is now a closed decision, not an open stretch goal — no further Instagram work happens during the hackathon. Demo leads with plain text / YouTube / article, all three implemented and tested. Pitch narrative keeps the "extensible to any content type" framing, now backed by a credible, specific answer about Instagram: what was tried, what was found, and why it's roadmap rather than MVP — this is a stronger answer than pretending it wasn't considered.
 
 ## 5. Core Pipeline (architecture, all paths converge here)
 
@@ -68,7 +68,7 @@ These are listed in the pitch as "roadmap," not built for the demo.
 
 ## 8. Risks (ranked by how much they can sink the submission)
 
-1. **Instagram/video scraping fragility** — highest risk, addressed by scoping order in Section 4 (build/test first, demote if unreliable).
+1. **Instagram/video scraping fragility** — RESOLVED (2026-07-10). Feasibility-tested and formally scoped out; see Section 4. No longer an open risk since no further Instagram work is planned.
 2. **Weak source verification** — if verification just summarizes top search hits, it can re-launder existing misinformation instead of catching it. Mitigated by source-quality ranking (Section 5, step 3).
 3. **Misidentified claim type** — verifying the wrong question (e.g., single-fact check when the real claim is comparative) gives a technically-answered-but-wrong verdict. Mitigated by dedicated claim-extraction step.
 4. **Live demo failure** — mitigated by having a guaranteed-reliable fallback path (plain text / YouTube / article) that does not depend on the riskiest ingestion method.
