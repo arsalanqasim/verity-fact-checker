@@ -1,0 +1,6 @@
+slack-bolt
+anthropic
+youtube-transcript-api
+trafilatura
+pytest
+python-dotenv
