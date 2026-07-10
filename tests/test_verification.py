@@ -300,3 +300,87 @@ class TestWorkspaceHistoryGuards:
         res = search_workspace_history("test query")
         assert res == []
 
+    def test_search_workspace_history_success(self, monkeypatch):
+        import re
+        monkeypatch.setenv("SLACK_USER_TOKEN", "xoxp-mock-user-token")
+        
+        called_args = []
+
+        class MockWebClient:
+            def __init__(self, token):
+                assert token == "xoxp-mock-user-token"
+
+            def api_call(self, method, json=None, **kwargs):
+                called_args.append((method, json))
+                return {
+                    "ok": True,
+                    "results": {
+                        "messages": [
+                            {
+                                "type": "message",
+                                "text": "This is a mock message discussing the claim.",
+                                "user": "U12345",
+                                "ts": "1672574400.000000",
+                                "permalink": "https://slack.com/archives/C12345/p1672574400000000",
+                                "channel": {
+                                    "id": "C12345",
+                                    "name": "general"
+                                }
+                            }
+                        ]
+                    }
+                }
+
+        monkeypatch.setattr("slack_sdk.WebClient", MockWebClient)
+
+        from src.pipeline.verification import search_workspace_history
+        res = search_workspace_history("protein content")
+        
+        # Verify the API call arguments
+        assert len(called_args) == 1
+        method, payload = called_args[0]
+        assert method == "assistant.search.context"
+        assert payload["query"] == "protein content"
+        assert payload["content_types"] == ["messages"]
+        assert payload["limit"] == 20
+
+        # Verify parsed output
+        assert len(res) == 1
+        discussion = res[0]
+        assert discussion["channel_name"] == "#general"
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", discussion["date"])
+        assert discussion["permalink"] == "https://slack.com/archives/C12345/p1672574400000000"
+        assert discussion["text"] == "This is a mock message discussing the claim."
+
+    def test_search_workspace_history_api_error(self, monkeypatch):
+        monkeypatch.setenv("SLACK_USER_TOKEN", "xoxp-mock-user-token")
+
+        class MockWebClientError:
+            def __init__(self, token):
+                pass
+
+            def api_call(self, method, json=None, **kwargs):
+                return {"ok": False, "error": "ratelimited"}
+
+        monkeypatch.setattr("slack_sdk.WebClient", MockWebClientError)
+
+        from src.pipeline.verification import search_workspace_history
+        res = search_workspace_history("protein content")
+        assert res == []
+
+    def test_search_workspace_history_exception_graceful(self, monkeypatch):
+        monkeypatch.setenv("SLACK_USER_TOKEN", "xoxp-mock-user-token")
+
+        class MockWebClientException:
+            def __init__(self, token):
+                pass
+
+            def api_call(self, method, json=None, **kwargs):
+                raise ValueError("Connection failed")
+
+        monkeypatch.setattr("slack_sdk.WebClient", MockWebClientException)
+
+        from src.pipeline.verification import search_workspace_history
+        res = search_workspace_history("protein content")
+        assert res == []
+

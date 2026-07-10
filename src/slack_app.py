@@ -87,6 +87,48 @@ def format_error_blocks(error_message: str, stage: str) -> list[dict]:
     ]
 
 
+def format_guidance_blocks(original_text: str) -> list[dict]:
+    """Format a friendly guidance prompt when no checkable claim is found."""
+    # Truncate text preview if long
+    text_preview = original_text
+    if len(text_preview) > 150:
+        text_preview = text_preview[:147] + "..."
+
+    return [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "ℹ️ Verity Guidance",
+                "emoji": True
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "I couldn't find a specific factual claim to check in that message."
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Received text:*\n> {text_preview}"
+            }
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "💡 *Tip:* Try pasting a link (YouTube/article) or a specific factual statement to check."
+                }
+            ]
+        }
+    ]
+
+
 def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions: list[dict] = None) -> list[dict]:
     """Format the final verdict into a premium Block Kit layout."""
     verdict = verdict_data.get("verdict", "Unverifiable")
@@ -239,6 +281,17 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
         extracted_claim_text = claim_res["claim"]
         claim_type = claim_res["claim_type"]
         compared_items = claim_res.get("compared_items")
+
+        # If it is not a checkable claim, skip verification & verdict and show guidance
+        if claim_type == "other":
+            guidance_blocks = format_guidance_blocks(text)
+            client.chat_update(
+                channel=channel,
+                ts=message_ts,
+                text="ℹ️ Verity Guidance",
+                blocks=guidance_blocks
+            )
+            return
 
         # Stage 3: Verification
         client.chat_update(channel=channel, ts=message_ts, text="🔍 *Verity is analyzing: searching for evidence...*")

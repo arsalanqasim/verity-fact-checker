@@ -66,6 +66,7 @@ Then edit `.env` and fill in every value:
 | `SLACK_BOT_TOKEN` | Slack app dashboard → **OAuth & Permissions** → Bot User OAuth Token (starts with `xoxb-`) |
 | `SLACK_SIGNING_SECRET` | Slack app dashboard → **Basic Information** → Signing Secret |
 | `SLACK_APP_TOKEN` | Slack app dashboard → **Basic Information** → App-Level Tokens → create one with `connections:write` scope (starts with `xapp-`) |
+| `SLACK_USER_TOKEN` | (Optional) Slack app dashboard → **OAuth & Permissions** → User OAuth Token (starts with `xoxp-`), required for Workspace Memory search. |
 | `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (free tier) |
 | `BRAVE_SEARCH_MCP_URL` | Your local or hosted Brave Search MCP server endpoint, e.g. `http://localhost:3001` |
 
@@ -82,6 +83,19 @@ Then edit `.env` and fill in every value:
 | `channels:history` | Read messages in public channels |
 | `groups:history` | Read messages in private channels the bot is added to |
 | `channels:read` | List channels |
+
+### Required user token scopes (`OAuth & Permissions` - Optional for Workspace Memory)
+
+If utilizing `SLACK_USER_TOKEN` for workspace history checks via the Real-Time Search (RTS) API, grant the following granular user scopes to your app:
+
+| Scope | Reason |
+|---|---|
+| `search:read.public` | Read access to all public channel messages |
+| `search:read.private` | Read access to all private channel messages |
+| `search:read.mpim` | Read access to all multi-person direct messages |
+| `search:read.im` | Read access to all direct messages |
+| `search:read.files` | Read access to all files |
+| `search:read.users` | Read access to a workspace's users |
 
 ### Enable Socket Mode
 

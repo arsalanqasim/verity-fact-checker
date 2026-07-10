@@ -10,7 +10,10 @@ Key design decisions:
   - Primary verification mechanism: Brave Search MCP server (SSE transport).
     Client uses the official ``mcp`` Python SDK (``mcp.client.sse.sse_client``
     + ``mcp.ClientSession``).  This is the actual fact-finding layer; it is
-    NOT Slack's RTS (in-workspace search).
+    NOT Slack's RTS (in-workspace search) API.
+  - Secondary workspace memory mechanism: Slack's Real-Time Search (RTS) API
+    (POST assistant.search.context), used to search the workspace history
+    for discussions of the claim using secure, granular scopes.
   - Comparative claims get ONE SEARCH PER COMPARED ITEM — not a single blended
     query.  This prevents the model from averaging across subjects and ensures
     each item has independently sourced evidence before comparison.
@@ -423,8 +426,14 @@ async def _verify_async(
 
 def search_workspace_history(query: str) -> list[dict]:
     """
-    Search the Slack workspace for discussions matching the query.
-    Requires SLACK_USER_TOKEN (xoxp-) in env with 'search:read' scope.
+    Search the Slack workspace for discussions matching the query using the Real-Time Search API.
+    Requires SLACK_USER_TOKEN (xoxp-) in env with granular RTS scopes:
+    - search:read.public
+    - search:read.private
+    - search:read.mpim
+    - search:read.im
+    - search:read.files
+    - search:read.users
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -439,14 +448,23 @@ def search_workspace_history(query: str) -> list[dict]:
         import datetime
 
         client = WebClient(token=user_token)
-        response = client.search_messages(query=query, count=5)
+        # Use assistant.search.context (RTS API) directly
+        response = client.api_call(
+            "assistant.search.context",
+            json={
+                "query": query,
+                "content_types": ["messages"],
+                "limit": 20
+            }
+        )
         if not response.get("ok"):
-            logger.warning(f"Slack search_messages failed: {response.get('error')}")
+            logger.warning(f"Slack assistant.search.context failed: {response.get('error')}")
             return []
 
-        matches = response.get("messages", {}).get("matches", [])
+        results = response.get("results", {})
+        messages = results.get("messages", [])
         discussions = []
-        for m in matches:
+        for m in messages:
             channel_data = m.get("channel", {})
             channel_name = channel_data.get("name", "unknown-channel")
             if channel_name and not channel_name.startswith("#"):
