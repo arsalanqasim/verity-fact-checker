@@ -20,8 +20,8 @@ Built for the Slack Agent Builder Hackathon, "Slack Agent for Good" track.
 ## 1. Clone the repo
 
 ```bash
-git clone <your-repo-url>
-cd slack-agent
+git clone https://github.com/arsalanqasim/verity-fact-checker.git
+cd verity-fact-checker
 ```
 
 ---
@@ -123,7 +123,7 @@ unit test passes with a fixed input/output.
 ## Project structure
 
 ```
-slack-agent/
+verity-fact-checker/
 ├── src/
 │   ├── slack_app.py          # Bolt entrypoint — event handlers only
 │   └── pipeline/

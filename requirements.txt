@@ -1,6 +1,6 @@
-slack-bolt
-anthropic
-youtube-transcript-api
-trafilatura
-pytest
-python-dotenv
+slack-bolt==1.29.0
+anthropic==0.116.0
+youtube-transcript-api==1.2.4
+trafilatura==2.1.0
+pytest==9.1.1
+python-dotenv==1.2.2
