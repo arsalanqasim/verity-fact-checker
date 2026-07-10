@@ -1,0 +1,86 @@
+Verity — Instagram Reel Feasibility Spike Report
+Generated: 2026-07-10T16:30:53.158743
+yt-dlp version: 2026.07.04
+
+============================================================
+Reel 1  https://www.instagram.com/reels/Dam0leboT-G/
+============================================================
+  STATUS        : [PASS] SUCCESS
+  Time taken    : 2.44s
+  Title         : Video by saharbee22
+  Duration      : Nones
+  Has subtitles : False
+  Description   : An update on what is happening in Pakistan Administered Kashmir. #pakistan #kashmir #protests
+
+============================================================
+Reel 2  https://www.instagram.com/reels/DaZDCOQNh7L/
+============================================================
+  STATUS        : [PASS] SUCCESS
+  Time taken    : 2.77s
+  Title         : Video by pano.dime
+  Duration      : Nones
+  Has subtitles : False
+  Description   : Posting something insane an AI executive said every day in 2026…until I run out of crazy stuff. Day 185: Why does [...]
+
+============================================================
+Reel 3  https://www.instagram.com/reels/DalDi3xITwW/
+============================================================
+  STATUS        : [PASS] SUCCESS
+  Time taken    : 2.61s
+  Title         : Video by guardian
+  Duration      : Nones
+  Has subtitles : False
+  Description   : “I’d be lying if I didn’t say I was terrified,” Roswell Encina told the Guardian, reflecting on the viral photo [...]
+
+
+============================================================
+FEASIBILITY VERDICT
+============================================================
+  Succeeded : 3 / 3
+  Failed    : 0 / 3
+  Login/bot walls detected : 0
+
+  RECOMMENDATION: POTENTIALLY VIABLE — at least 2/3 URLs
+  succeeded. However, verify whether success is stable
+  across repeated runs and different IP addresses before
+  integrating into the MVP critical path.
+
+Raw JSON results:
+[
+  {
+    "url": "https://www.instagram.com/reels/Dam0leboT-G/",
+    "success": true,
+    "elapsed_seconds": 2.44,
+    "error": null,
+    "error_type": null,
+    "title": "Video by saharbee22",
+    "description": "An update on what is happening in Pakistan Administered Kashmir. \n\n#pakistan #kashmir #protests",
+    "duration_seconds": null,
+    "has_subtitles": false,
+    "http_status_hint": null
+  },
+  {
+    "url": "https://www.instagram.com/reels/DaZDCOQNh7L/",
+    "success": true,
+    "elapsed_seconds": 2.77,
+    "error": null,
+    "error_type": null,
+    "title": "Video by pano.dime",
+    "description": "Posting something insane an AI executive said every day in 2026\u2026until I run out of crazy stuff. \n\nDay 185: Why does ChatGPT lie so much? Ask Sam Altman CEO of OpenAI (ChatGPT), who has a reputation as a \u201cpathological liar\u201d among former coworkers and a history of doing another\n\nSources (in order): Pa",
+    "duration_seconds": null,
+    "has_subtitles": false,
+    "http_status_hint": null
+  },
+  {
+    "url": "https://www.instagram.com/reels/DalDi3xITwW/",
+    "success": true,
+    "elapsed_seconds": 2.61,
+    "error": null,
+    "error_type": null,
+    "title": "Video by guardian",
+    "description": "\u201cI\u2019d be lying if I didn\u2019t say I was terrified,\u201d Roswell Encina told the Guardian, reflecting on the viral photo taken of him amongst a crowd of white nationalists on the Washington DC metro. The photo was taken during last week\u2019s Fourth of July celebrations marking the 250th anniversary of the US\u2019s ",
+    "duration_seconds": null,
+    "has_subtitles": false,
+    "http_status_hint": null
+  }
+]
