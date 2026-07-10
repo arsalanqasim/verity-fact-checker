@@ -25,6 +25,8 @@ from src.pipeline.ingestion import ingest
 from src.pipeline.claims import extract_claim
 from src.pipeline.verification import verify_claim, search_workspace_history
 from src.pipeline.agent import run_agent
+from src.pipeline.reporting import create_fact_check_canvas, add_claim_to_list
+
 
 
 load_dotenv()
@@ -56,6 +58,18 @@ def get_verdict_emoji(verdict: str) -> str:
         "Unverifiable": "⚪",
     }
     return mapping.get(verdict, "❓")
+
+
+def get_verdict_color(verdict: str) -> str:
+    """Return an appropriate hex color for the verdict left-border attachment."""
+    mapping = {
+        "True": "#2EB67D",        # Emerald green
+        "False": "#E01E5A",       # Crimson red
+        "Misleading": "#ECB22E",  # Amber yellow
+        "Unverifiable": "#9E9E9E", # Cool slate gray
+    }
+    return mapping.get(verdict, "#D1D2D5") # Neutral light gray
+
 
 
 def format_error_blocks(error_message: str, stage: str) -> list[dict]:
@@ -137,7 +151,7 @@ def format_guidance_blocks(original_text: str) -> list[dict]:
     ]
 
 
-def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions: list[dict] = None) -> list[dict]:
+def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions: list[dict] = None, canvas_url: str = None) -> list[dict]:
     """Format the final verdict into a premium Block Kit layout."""
     verdict = verdict_data.get("verdict", "Unverifiable")
     confidence = verdict_data.get("confidence", 0.0)
@@ -155,10 +169,12 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
             title = s.get("title") or "Source Link"
             url = s.get("url", "#")
             tier = s.get("tier", 3)
-            formatted_sources.append(f"• <{url}|{title}> (Tier {tier})")
+            tier_badge = "🟢 *Tier 1 (Primary)*" if tier == 1 else ("🟡 *Tier 2 (Reputable)*" if tier == 2 else "⚪ *Tier 3 (General Web)*")
+            formatted_sources.append(f"• <{url}|*{title}*> — {tier_badge}")
         sources_text = "\n".join(formatted_sources)
     else:
         sources_text = "No sources cited."
+
 
     blocks = [
         {
@@ -234,6 +250,21 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
             }
         ])
 
+    # Surface Slack Canvas Report link if present
+    if canvas_url:
+        blocks.extend([
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"📄 *Full Report (Slack Canvas):*\nVerity has compiled a detailed report. <{canvas_url}|View Canvas Report>"
+                }
+            }
+        ])
+
     # Footer
     blocks.append({
         "type": "context",
@@ -243,6 +274,7 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
                 "text": "Verity Fact Checker • Powered by Gemini & Brave Search MCP"
             }
         ]
+
     })
     return blocks
 
@@ -444,12 +476,19 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
         # Retrieve workspace memory (RTS search)
         workspace_discussions = search_workspace_history(extracted_claim_text)
 
+        # Stage 5: Canvas Report & Directory Logging
+        canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res)
+        add_claim_to_list(client, extracted_claim_text, agent_res)
+
         # Success: post final blocks
-        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions)
+        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url)
+        color = get_verdict_color(agent_res.get("verdict"))
         say(
             text=f"⚖️ Verity Verdict: {agent_res.get('verdict')}",
-            blocks=blocks
+            attachments=[{"color": color, "blocks": blocks}]
         )
+
+
 
 
     except Exception as exc:
@@ -530,14 +569,21 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
         # Retrieve workspace memory (RTS search)
         workspace_discussions = search_workspace_history(extracted_claim_text)
 
+        # Stage 5: Canvas Report & Directory Logging
+        canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res)
+        add_claim_to_list(client, extracted_claim_text, agent_res)
+
         # Success: update message with final blocks
-        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions)
+        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url)
+        color = get_verdict_color(agent_res.get("verdict"))
         client.chat_update(
             channel=channel,
             ts=message_ts,
             text=f"⚖️ Verity Verdict: {agent_res.get('verdict')}",
-            blocks=blocks
+            attachments=[{"color": color, "blocks": blocks}]
         )
+
+
 
 
     except Exception as exc:
@@ -630,9 +676,14 @@ def handle_check_sample_claim(ack, body, client):
             
             workspace_discussions = search_workspace_history(extracted_claim)
             
-            # 5. Build Modal Blocks (filtering out any top-level header block)
-            verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions)
+            # Stage 5: Canvas Report & Directory Logging
+            canvas_url = create_fact_check_canvas(client, extracted_claim, agent_res)
+            add_claim_to_list(client, extracted_claim, agent_res)
+            
+            # Build Modal Blocks (filtering out any top-level header block)
+            verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions, canvas_url)
             filtered_blocks = [b for b in verdict_blocks if b.get("type") != "header"]
+
             
             final_view = {
                 "type": "modal",

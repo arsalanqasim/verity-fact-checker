@@ -12,12 +12,10 @@ class TestSlackAppOrchestration:
 
     @patch("src.slack_app.ingest")
     @patch("src.slack_app.extract_claim")
-    @patch("src.slack_app.verify_claim")
-    @patch("src.slack_app.synthesise_verdict")
+    @patch("src.slack_app.run_agent")
     def test_run_pipeline_short_circuits_on_other(
         self,
-        mock_synthesise,
-        mock_verify,
+        mock_run_agent,
         mock_extract,
         mock_ingest
     ):
@@ -45,15 +43,10 @@ class TestSlackAppOrchestration:
             client=mock_client
         )
 
-        # 4. Verify short-circuit: verify_claim & synthesise_verdict MUST NOT be called
-        mock_verify.assert_not_called()
-        mock_synthesise.assert_not_called()
+        # 4. Verify short-circuit: run_agent MUST NOT be called
+        mock_run_agent.assert_not_called()
 
         # 5. Verify final update called with guidance blocks
-        # First call is postMessage (analyzing)
-        # Second call is chat_update (ingesting)
-        # Third call is chat_update (extracting claim)
-        # Fourth call is chat_update (guidance message)
         assert mock_client.chat_update.call_count == 3
         
         last_update_kwargs = mock_client.chat_update.call_args[1]
@@ -70,12 +63,16 @@ class TestSlackAppOrchestration:
 
     @patch("src.slack_app.ingest")
     @patch("src.slack_app.extract_claim")
-    @patch("src.slack_app.verify_claim")
-    @patch("src.slack_app.synthesise_verdict")
+    @patch("src.slack_app.run_agent")
+    @patch("src.slack_app.search_workspace_history")
+    @patch("src.slack_app.create_fact_check_canvas")
+    @patch("src.slack_app.add_claim_to_list")
     def test_run_pipeline_runs_fully_on_factual_claim(
         self,
-        mock_synthesise,
-        mock_verify,
+        mock_add_claim_list,
+        mock_create_canvas,
+        mock_search_workspace,
+        mock_run_agent,
         mock_extract,
         mock_ingest
     ):
@@ -90,18 +87,15 @@ class TestSlackAppOrchestration:
             "claim_type": "comparative",
             "compared_items": ["lentils", "eggs"]
         }
-        mock_verify.return_value = {
-            "success": True,
-            "evidence": [{"source_url": "https://gov.com", "title": "USDA", "snippet": "protein content", "authority_score": 0.9, "authority_tier": 1, "query": "lentils"}],
-            "workspace_discussions": []
-        }
-        mock_synthesise.return_value = {
+        mock_run_agent.return_value = {
             "success": True,
             "verdict": "True",
             "confidence": 0.95,
             "summary": "Nutritional data verifies protein content.",
             "sources": [{"title": "USDA", "url": "https://gov.com", "tier": 1}]
         }
+        mock_search_workspace.return_value = []
+        mock_create_canvas.return_value = "https://slack.com/canvas/C123"
 
         # 2. Setup mock client
         mock_client = MagicMock()
@@ -118,28 +112,31 @@ class TestSlackAppOrchestration:
         # 4. Verify all pipeline stages were called
         mock_ingest.assert_called_once_with("Lentils have more protein than eggs.")
         mock_extract.assert_called_once_with("Lentils have more protein than eggs.")
-        mock_verify.assert_called_once_with("Lentils have more protein than eggs.", "comparative", ["lentils", "eggs"])
-        mock_synthesise.assert_called_once()
+        mock_run_agent.assert_called_once_with("Lentils have more protein than eggs.")
+        mock_search_workspace.assert_called_once_with("Lentils have more protein than eggs.")
+        mock_create_canvas.assert_called_once()
+        mock_add_claim_list.assert_called_once()
 
-        # 5. Verify final update called with verdict blocks
-        assert mock_client.chat_update.call_count == 5  # ingesting, extracting, searching, synthesizing, final verdict
+        # 5. Verify final update called with verdict blocks in attachments
+        assert mock_client.chat_update.call_count == 4  # ingesting, extracting, gathering/synthesizing, final verdict
         last_update_kwargs = mock_client.chat_update.call_args[1]
         assert last_update_kwargs["channel"] == "C11111"
         assert last_update_kwargs["ts"] == "12345.67890"
         assert "Verity Verdict: True" in last_update_kwargs["text"]
         
-        blocks = last_update_kwargs["blocks"]
+        attachments = last_update_kwargs["attachments"]
+        assert len(attachments) == 1
+        assert attachments[0]["color"] == "#2EB67D"
+        blocks = attachments[0]["blocks"]
         assert len(blocks) > 0
         assert blocks[0]["text"]["text"] == "⚖️ Verity Fact Check"
 
     @patch("src.slack_app.ingest")
     @patch("src.slack_app.extract_claim")
-    @patch("src.slack_app.verify_claim")
-    @patch("src.slack_app.synthesise_verdict")
+    @patch("src.slack_app.run_agent")
     def test_run_pipeline_assistant_short_circuits_on_other(
         self,
-        mock_synthesise,
-        mock_verify,
+        mock_run_agent,
         mock_extract,
         mock_ingest
     ):
@@ -165,12 +162,9 @@ class TestSlackAppOrchestration:
             say=mock_say
         )
 
-        mock_verify.assert_not_called()
-        mock_synthesise.assert_not_called()
+        mock_run_agent.assert_not_called()
 
         # Verify that setStatus was called to show progress
-        # First call: ingesting
-        # Second call: extracting
         assert mock_client.assistant_threads_setStatus.call_count == 2
         mock_client.assistant_threads_setStatus.assert_any_call(
             channel_id="C11111", thread_ts="11111.22222", status="ingesting content..."
@@ -184,12 +178,16 @@ class TestSlackAppOrchestration:
 
     @patch("src.slack_app.ingest")
     @patch("src.slack_app.extract_claim")
-    @patch("src.slack_app.verify_claim")
-    @patch("src.slack_app.synthesise_verdict")
+    @patch("src.slack_app.run_agent")
+    @patch("src.slack_app.search_workspace_history")
+    @patch("src.slack_app.create_fact_check_canvas")
+    @patch("src.slack_app.add_claim_to_list")
     def test_run_pipeline_assistant_runs_fully_on_factual_claim(
         self,
-        mock_synthesise,
-        mock_verify,
+        mock_add_claim_list,
+        mock_create_canvas,
+        mock_search_workspace,
+        mock_run_agent,
         mock_extract,
         mock_ingest
     ):
@@ -203,18 +201,15 @@ class TestSlackAppOrchestration:
             "claim_type": "comparative",
             "compared_items": ["lentils", "eggs"]
         }
-        mock_verify.return_value = {
-            "success": True,
-            "evidence": [{"source_url": "https://gov.com", "title": "USDA", "snippet": "protein content", "authority_score": 0.9, "authority_tier": 1, "query": "lentils"}],
-            "workspace_discussions": []
-        }
-        mock_synthesise.return_value = {
+        mock_run_agent.return_value = {
             "success": True,
             "verdict": "True",
             "confidence": 0.95,
             "summary": "Nutritional data verifies protein content.",
             "sources": [{"title": "USDA", "url": "https://gov.com", "tier": 1}]
         }
+        mock_search_workspace.return_value = []
+        mock_create_canvas.return_value = "https://slack.com/canvas/C123"
 
         mock_client = MagicMock()
         mock_say = MagicMock()
@@ -229,18 +224,23 @@ class TestSlackAppOrchestration:
 
         mock_ingest.assert_called_once_with("Lentils have more protein than eggs.")
         mock_extract.assert_called_once_with("Lentils have more protein than eggs.")
-        mock_verify.assert_called_once_with("Lentils have more protein than eggs.", "comparative", ["lentils", "eggs"])
-        mock_synthesise.assert_called_once()
+        mock_run_agent.assert_called_once_with("Lentils have more protein than eggs.")
+        mock_search_workspace.assert_called_once_with("Lentils have more protein than eggs.")
+        mock_create_canvas.assert_called_once()
+        mock_add_claim_list.assert_called_once()
 
         # Verify assistant thread status updates:
-        # 1. ingesting, 2. extracting, 3. searching, 4. synthesizing
-        assert mock_client.assistant_threads_setStatus.call_count == 4
+        # 1. ingesting, 2. extracting, 3. analyzing/gathering
+        assert mock_client.assistant_threads_setStatus.call_count == 3
 
-        # Verify final reply was posted via say
+        # Verify final reply was posted via say with attachments
         mock_say.assert_called_once()
         say_kwargs = mock_say.call_args[1]
         assert "Verity Verdict: True" in say_kwargs["text"]
-        assert say_kwargs["blocks"][0]["text"]["text"] == "⚖️ Verity Fact Check"
+        attachments = say_kwargs["attachments"]
+        assert len(attachments) == 1
+        assert attachments[0]["color"] == "#2EB67D"
+        assert attachments[0]["blocks"][0]["text"]["text"] == "⚖️ Verity Fact Check"
 
     def test_handle_app_home_opened(self):
         from src.slack_app import handle_app_home_opened
@@ -258,14 +258,18 @@ class TestSlackAppOrchestration:
 
     @patch("src.slack_app.ingest")
     @patch("src.slack_app.extract_claim")
-    @patch("src.slack_app.verify_claim")
-    @patch("src.slack_app.synthesise_verdict")
+    @patch("src.slack_app.run_agent")
+    @patch("src.slack_app.search_workspace_history")
+    @patch("src.slack_app.create_fact_check_canvas")
+    @patch("src.slack_app.add_claim_to_list")
     @patch("threading.Thread")
     def test_handle_check_sample_claim(
         self,
         mock_thread,
-        mock_synthesise,
-        mock_verify,
+        mock_add_claim_list,
+        mock_create_canvas,
+        mock_search_workspace,
+        mock_run_agent,
         mock_extract,
         mock_ingest
     ):
@@ -274,14 +278,15 @@ class TestSlackAppOrchestration:
         # 1. Setup mock returns
         mock_ingest.return_value = {"success": True, "raw_text": "Lentils protein"}
         mock_extract.return_value = {"success": True, "claim": "Lentils protein", "claim_type": "single_fact", "compared_items": None}
-        mock_verify.return_value = {"success": True, "evidence": [], "workspace_discussions": []}
-        mock_synthesise.return_value = {
+        mock_run_agent.return_value = {
             "success": True,
             "verdict": "True",
             "confidence": 0.9,
             "summary": "verified",
             "sources": []
         }
+        mock_search_workspace.return_value = []
+        mock_create_canvas.return_value = "https://slack.com/canvas/C123"
 
         # 2. Setup mock client
         mock_client = MagicMock()
@@ -313,13 +318,13 @@ class TestSlackAppOrchestration:
         # Verify pipeline execution
         mock_ingest.assert_called_once()
         mock_extract.assert_called_once()
-        mock_verify.assert_called_once()
-        mock_synthesise.assert_called_once()
+        mock_run_agent.assert_called_once()
+        mock_search_workspace.assert_called_once()
+        mock_create_canvas.assert_called_once()
+        mock_add_claim_list.assert_called_once()
 
         # Verify views_update was called with final modal layout
         mock_client.views_update.assert_called_once()
         update_kwargs = mock_client.views_update.call_args[1]
         assert update_kwargs["view_id"] == "V12345"
         assert update_kwargs["view"]["type"] == "modal"
-
-
