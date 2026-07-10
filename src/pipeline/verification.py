@@ -421,6 +421,57 @@ async def _verify_async(
 # Public entry point
 # ---------------------------------------------------------------------------
 
+def search_workspace_history(query: str) -> list[dict]:
+    """
+    Search the Slack workspace for discussions matching the query.
+    Requires SLACK_USER_TOKEN (xoxp-) in env with 'search:read' scope.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    user_token = os.environ.get("SLACK_USER_TOKEN", "").strip()
+    if not user_token:
+        logger.info("SLACK_USER_TOKEN not set; skipping workspace history search.")
+        return []
+
+    try:
+        from slack_sdk import WebClient
+        import datetime
+
+        client = WebClient(token=user_token)
+        response = client.search_messages(query=query, count=5)
+        if not response.get("ok"):
+            logger.warning(f"Slack search_messages failed: {response.get('error')}")
+            return []
+
+        matches = response.get("messages", {}).get("matches", [])
+        discussions = []
+        for m in matches:
+            channel_data = m.get("channel", {})
+            channel_name = channel_data.get("name", "unknown-channel")
+            if channel_name and not channel_name.startswith("#"):
+                channel_name = f"#{channel_name}"
+
+            ts = m.get("ts")
+            date_str = "unknown date"
+            if ts:
+                try:
+                    date_str = datetime.datetime.fromtimestamp(float(ts)).strftime('%Y-%m-%d')
+                except Exception:
+                    pass
+
+            discussions.append({
+                "channel_name": channel_name,
+                "date": date_str,
+                "permalink": m.get("permalink", ""),
+                "text": m.get("text", "")
+            })
+        return discussions
+    except Exception as exc:
+        logger.warning(f"Error during workspace search: {exc}")
+        return []
+
+
 def verify_claim(
     claim: str,
     claim_type: str,
@@ -428,7 +479,7 @@ def verify_claim(
 ) -> dict:
     """
     Gather evidence for ``claim`` from the Brave Search MCP server and return
-    source-quality-ranked results.
+    source-quality-ranked results, along with optional prior workspace discussions.
 
     Parameters
     ----------
@@ -444,16 +495,23 @@ def verify_claim(
     -------
     dict with keys:
       - ``evidence``  : list of evidence dicts, sorted by authority_score desc
+      - ``workspace_discussions`` : list of prior conversations found via Slack RTS
       - ``success``   : True if at least some evidence was gathered
       - ``error``     : None on full success, partial-error message otherwise
     """
     if not claim or not claim.strip():
-        return {"evidence": [], "success": False, "error": "Claim was empty."}
+        return {
+            "evidence": [],
+            "workspace_discussions": [],
+            "success": False,
+            "error": "Claim was empty."
+        }
 
     mcp_url = os.environ.get("BRAVE_SEARCH_MCP_URL", "").strip()
     if not mcp_url:
         return {
             "evidence": [],
+            "workspace_discussions": search_workspace_history(claim.strip()),
             "success": False,
             "error": (
                 "BRAVE_SEARCH_MCP_URL is not set. Start the Brave Search MCP "
@@ -463,12 +521,15 @@ def verify_claim(
         }
 
     try:
-        return asyncio.run(
+        res = asyncio.run(
             _verify_async(mcp_url, claim.strip(), claim_type, compared_items)
         )
+        res["workspace_discussions"] = search_workspace_history(claim.strip())
+        return res
     except Exception as exc:  # noqa: BLE001
         return {
             "evidence": [],
+            "workspace_discussions": search_workspace_history(claim.strip()),
             "success": False,
             "error": f"Verification failed: {exc}",
         }

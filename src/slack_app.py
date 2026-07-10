@@ -87,7 +87,7 @@ def format_error_blocks(error_message: str, stage: str) -> list[dict]:
     ]
 
 
-def format_verdict_blocks(claim: str, verdict_data: dict) -> list[dict]:
+def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions: list[dict] = None) -> list[dict]:
     """Format the final verdict into a premium Block Kit layout."""
     verdict = verdict_data.get("verdict", "Unverifiable")
     confidence = verdict_data.get("confidence", 0.0)
@@ -149,17 +149,51 @@ def format_verdict_blocks(claim: str, verdict_data: dict) -> list[dict]:
                 "type": "mrkdwn",
                 "text": f"*Sourced Evidence:*\n{sources_text}"
             }
-        },
-        {
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": "Verity Fact Checker • Powered by Gemini & Brave Search MCP"
-                }
-            ]
         }
     ]
+
+    # Surface workspace discussions (Slack RTS memory) if present
+    if workspace_discussions:
+        formatted_discussions = []
+        for d in workspace_discussions:
+            channel = d.get("channel_name") or "#unknown"
+            date = d.get("date") or "unknown date"
+            link = d.get("permalink") or "#"
+            text_preview = d.get("text", "")
+            # Truncate text preview if long
+            if len(text_preview) > 100:
+                text_preview = text_preview[:100] + "..."
+            
+            # Format nicely
+            formatted_discussions.append(
+                f"• discussed in <{link}|{channel}> on {date}\n"
+                f"  > \"{text_preview}\""
+            )
+        discussions_text = "\n".join(formatted_discussions)
+
+        blocks.extend([
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Workspace Memory (Slack RTS):*\n{discussions_text}"
+                }
+            }
+        ])
+
+    # Footer
+    blocks.append({
+        "type": "context",
+        "elements": [
+            {
+                "type": "mrkdwn",
+                "text": "Verity Fact Checker • Powered by Gemini & Brave Search MCP"
+            }
+        ]
+    })
     return blocks
 
 
@@ -220,6 +254,7 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
             return
 
         evidence = verification_res["evidence"]
+        workspace_discussions = verification_res.get("workspace_discussions", [])
 
         # Stage 4: Verdict Synthesis
         client.chat_update(channel=channel, ts=message_ts, text="🔍 *Verity is analyzing: synthesizing verdict...*")
@@ -235,7 +270,7 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
             return
 
         # Success: update message with final blocks
-        blocks = format_verdict_blocks(extracted_claim_text, verdict_res)
+        blocks = format_verdict_blocks(extracted_claim_text, verdict_res, workspace_discussions)
         client.chat_update(
             channel=channel,
             ts=message_ts,

@@ -285,6 +285,18 @@ class TestLiveVerification:
             compared_items=None,
         )
         assert "evidence" in result
+        assert "workspace_discussions" in result
         assert "success" in result
         assert "error" in result
         assert isinstance(result["evidence"], list)
+        assert isinstance(result["workspace_discussions"], list)
+
+
+class TestWorkspaceHistoryGuards:
+    def test_search_workspace_history_skipped_when_token_missing(self, monkeypatch):
+        # Ensure token is missing
+        monkeypatch.delenv("SLACK_USER_TOKEN", raising=False)
+        from src.pipeline.verification import search_workspace_history
+        res = search_workspace_history("test query")
+        assert res == []
+
