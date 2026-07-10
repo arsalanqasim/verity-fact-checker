@@ -35,11 +35,13 @@ Feasibility spike (2026-07-10, `scripts/ig_spike.py`) confirmed via yt-dlp again
 
 ## Tech stack
 - Python 3.11+, Slack Bolt SDK for Python
-- Claude API (Anthropic) for claim extraction and verdict synthesis — use structured JSON output, no free-text parsing
+- **Gemini API (Google AI Studio, free tier) for claim extraction and verdict synthesis** — model: `gemini-2.5-flash` (stable, not a preview model — preview models can change behavior or be deprecated mid-hackathon with little notice). Use structured JSON output via `response_mime_type="application/json"` + `response_schema`, no free-text parsing.
 - MCP client integration for Brave Search MCP server (verification)
 - `youtube-transcript-api` for YouTube ingestion
 - `trafilatura` for article text extraction
 - pytest for tests — every pipeline module needs a unit test with a fixed input/output before it's considered done
+
+Note: free tier data may be used by Google to improve their models. Not a concern for this project (claim text is public content being fact-checked, not sensitive user data), but don't route anything private through it.
 
 ## Repo conventions
 - One module per pipeline stage under `src/pipeline/` (`ingestion.py`, `claims.py`, `verification.py`, `verdict.py`)
@@ -54,7 +56,7 @@ Feasibility spike (2026-07-10, `scripts/ig_spike.py`) confirmed via yt-dlp again
 SLACK_BOT_TOKEN=
 SLACK_SIGNING_SECRET=
 SLACK_APP_TOKEN=
-ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
 BRAVE_SEARCH_MCP_URL=
 ```
 
