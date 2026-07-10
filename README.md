@@ -12,7 +12,7 @@ Built for the Slack Agent Builder Hackathon, "Slack Agent for Good" track.
 
 - Python **3.11 or later**
 - A Slack workspace where you have permission to install apps
-- An [Anthropic API key](https://console.anthropic.com/)
+- A [Google AI Studio API key](https://aistudio.google.com/apikey) (free tier, `GEMINI_API_KEY`)
 - A Brave Search MCP server URL (local or hosted)
 
 ---
@@ -66,7 +66,7 @@ Then edit `.env` and fill in every value:
 | `SLACK_BOT_TOKEN` | Slack app dashboard → **OAuth & Permissions** → Bot User OAuth Token (starts with `xoxb-`) |
 | `SLACK_SIGNING_SECRET` | Slack app dashboard → **Basic Information** → Signing Secret |
 | `SLACK_APP_TOKEN` | Slack app dashboard → **Basic Information** → App-Level Tokens → create one with `connections:write` scope (starts with `xapp-`) |
-| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/) |
+| `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (free tier) |
 | `BRAVE_SEARCH_MCP_URL` | Your local or hosted Brave Search MCP server endpoint, e.g. `http://localhost:3001` |
 
 ---
@@ -128,9 +128,9 @@ verity-fact-checker/
 │   ├── slack_app.py          # Bolt entrypoint — event handlers only
 │   └── pipeline/
 │       ├── ingestion.py      # Stage 1: detect input type, extract text
-│       ├── claims.py         # Stage 2: identify checkable claim(s) via Claude
+│       ├── claims.py         # Stage 2: identify checkable claim(s) via Gemini
 │       ├── verification.py   # Stage 3: query Brave Search MCP, rank sources
-│       └── verdict.py        # Stage 4: synthesise verdict JSON via Claude
+│       └── verdict.py        # Stage 4: synthesise verdict JSON via Gemini
 ├── tests/
 │   ├── test_ingestion.py
 │   ├── test_claims.py
@@ -154,7 +154,7 @@ User pastes link or claim in Slack
     (plain text / YouTube transcript / article body)
            │
            ▼
-    [2] Claim Extraction  (Claude)
+    [2] Claim Extraction  (Gemini)
     Identify the checkable claim(s) and their type
     (single-fact / comparative / causal)
            │
@@ -164,7 +164,7 @@ User pastes link or claim in Slack
     (.gov/.edu/peer-reviewed > established news > generic web)
            │
            ▼
-    [4] Verdict Synthesis  (Claude)
+    [4] Verdict Synthesis  (Gemini)
     Produce structured JSON:
     { verdict, confidence, summary, sources[] }
            │

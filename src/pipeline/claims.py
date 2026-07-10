@@ -4,10 +4,10 @@ Stage 2 — Claim Extraction
 Responsibility:
   Given the raw text produced by the Ingestion stage, identify the specific,
   checkable claim(s) contained in that text via a structured LLM call to the
-  Claude API (Anthropic).
+  Gemini API (Google AI Studio, gemini-2.5-flash).
 
 Key design decisions:
-  - Uses Claude with structured JSON output (no free-text parsing).
+  - Uses Gemini (gemini-2.5-flash) with structured JSON output (no free-text parsing).
   - Correctly classifies claim *type*:
       • Single factual claim  — one discrete, verifiable assertion.
       • Comparative/superlative claim — e.g. "X has more protein than Y and Z"
