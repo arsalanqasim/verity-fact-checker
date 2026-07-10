@@ -66,6 +66,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from src.pipeline.mcp_client import get_mcp_client
+
+
 # ---------------------------------------------------------------------------
 # Authority scoring — the explicit design decision
 # ---------------------------------------------------------------------------
@@ -197,28 +200,22 @@ async def _call_brave_mcp(
     count: int = _RESULTS_PER_QUERY,
 ) -> list[dict]:
     """
-    Connect to the Brave Search MCP server via SSE transport, call the
-    ``brave_web_search`` tool, and parse the results into a list of dicts:
-      [{"title": str, "url": str, "snippet": str}, ...]
-
-    Uses ``mcp.client.sse.sse_client`` + ``mcp.ClientSession`` from the
-    official MCP Python SDK (mcp>=1.28).
+    Query the Brave Search MCP server using the persistent client connection,
+    call the ``brave_web_search`` tool, and parse the results into a list of dicts.
     """
-    from mcp.client.sse import sse_client
-    from mcp import ClientSession
+    client = get_mcp_client(mcp_url)
+    session = await client.get_session()
 
-    async with sse_client(url=mcp_url, timeout=15) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(
-                _TOOL_NAME,
-                {"query": query, "count": count},
-            )
+    result = await session.call_tool(
+        _TOOL_NAME,
+        {"query": query, "count": count},
+    )
 
     if result.isError:
         raise RuntimeError(f"MCP tool returned an error for query '{query}'")
 
     return _parse_tool_result(result.content)
+
 
 
 def _parse_tool_result(content_items) -> list[dict]:
@@ -380,18 +377,23 @@ async def _verify_async(
     claim_type: str,
     compared_items: Optional[list[str]],
 ) -> dict:
-    """Async core — gathers evidence for all queries and returns sorted results."""
+    """Async core — gathers evidence for all queries concurrently and returns sorted results."""
     queries = _build_queries(claim, claim_type, compared_items)
 
     all_evidence: list[dict] = []
     errors: list[str] = []
 
-    for query_str, label in queries:
+    # Run queries concurrently using asyncio.gather
+    async def run_one(query_str, label):
         try:
-            ev = await _gather_evidence_for_query(mcp_url, query_str, label)
-            all_evidence.extend(ev)
-        except Exception as exc:  # noqa: BLE001
+            return await _gather_evidence_for_query(mcp_url, query_str, label)
+        except Exception as exc:
             errors.append(f"Query '{label}' failed: {exc}")
+            return []
+
+    results = await asyncio.gather(*[run_one(q, l) for q, l in queries])
+    for res in results:
+        all_evidence.extend(res)
 
     if not all_evidence and errors:
         return {
@@ -399,6 +401,7 @@ async def _verify_async(
             "success": False,
             "error": "; ".join(errors),
         }
+
 
     # Deduplicate by URL, keeping the highest-scored copy
     seen: dict[str, dict] = {}

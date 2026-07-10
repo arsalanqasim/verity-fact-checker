@@ -13,16 +13,19 @@ appropriate pipeline function(s), post/update the formatted reply.
 import logging
 import os
 import re
+import threading
 from dotenv import load_dotenv
 
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_bolt.middleware.assistant import Assistant
 
 # Import pipeline functions
 from src.pipeline.ingestion import ingest
 from src.pipeline.claims import extract_claim
-from src.pipeline.verification import verify_claim
-from src.pipeline.verdict import synthesise_verdict
+from src.pipeline.verification import verify_claim, search_workspace_history
+from src.pipeline.agent import run_agent
+
 
 load_dotenv()
 
@@ -34,6 +37,11 @@ app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
 )
+
+# Initialize Assistant Middleware
+assistant = Assistant()
+app.use(assistant)
+
 
 # ---------------------------------------------------------------------------
 # Pipeline Runner & Block Kit Formatting
@@ -239,6 +247,219 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
     return blocks
 
 
+def get_home_tab_view() -> dict:
+    """Construct the Block Kit layout for Verity's App Home tab."""
+    return {
+        "type": "home",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "⚖️ Verity Fact-Checking Hub",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Welcome to **Verity**, your native AI fact-checking assistant! Verity helps you verify links, video transcripts, or text claims in real-time."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*How to Use Verity:*\n"
+                    "1️⃣ **Assistant Tab:** Click the **Assistant** tab at the top of this screen to chat with Verity. Paste a link (YouTube or article) or write any claim.\n"
+                    "2️⃣ **Mentions:** Mention `@Verity` in any channel thread to verify messages in public discussions."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "🛡️ *Epistemic Authority Weighting Methodology:*\n"
+                    "To prevent misinformation loops, Verity automatically scores and weights evidence sources:"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "🟢 *Tier 1: Primary Sources (Weight 0.75 - 1.00)*\n"
+                    "Government sites (.gov), universities (.edu), journals (Nature, Science, PubMed), and nutritional databases."
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "🟡 *Tier 2: Established Outlets (Weight 0.45 - 0.74)*\n"
+                    "Reputable news outlets (AP, Reuters, BBC) and specialized fact-checkers (Snopes, Politifact)."
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "⚪ *Tier 3: General Web (Weight 0.10 - 0.44)*\n"
+                    "Blogs, forums, social media, and other sites. Weight is minimized to prevent unverified content from anchoring decisions."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "⚡ *Try a Live Demo Check:*\n"
+                    "Click a button below to run a fact-check immediately and display the results in a modal popup."
+                }
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Lentils vs Eggs Protein Check",
+                            "emoji": True
+                        },
+                        "value": "Lentils have more protein per 100g than eggs.",
+                        "action_id": "check_sample_claim",
+                        "style": "primary"
+                    },
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Eiffel Tower Height Check",
+                            "emoji": True
+                        },
+                        "value": "The Eiffel Tower stands 330 metres tall including its antenna.",
+                        "action_id": "check_sample_claim"
+                    },
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Banana Radioactivity Check",
+                            "emoji": True
+                        },
+                        "value": "Bananas are radioactive enough to cause immediate radiation poisoning.",
+                        "action_id": "check_sample_claim"
+                    }
+                ]
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "Verity Fact Checker • Built for the Slack Agent Builder Hackathon"
+                    }
+                ]
+            }
+        ]
+    }
+
+
+
+def set_status(client, channel: str, thread_ts: str, status: str) -> None:
+    """Helper to natively set the assistant's thinking/progress status."""
+    try:
+        client.assistant_threads_setStatus(
+            channel_id=channel,
+            thread_ts=thread_ts,
+            status=status
+        )
+    except Exception as exc:
+        logger.debug(f"Could not set assistant thread status: {exc}")
+
+
+def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, client, say) -> None:
+    """Run the 4-stage pipeline natively within an assistant thread using status and say."""
+    try:
+        # Stage 1: Ingestion
+        set_status(client, channel, thread_ts, "ingesting content...")
+        ingestion_res = ingest(text)
+        if not ingestion_res.get("success"):
+            error_msg = ingestion_res.get("error", "Unknown ingestion error.")
+            say(
+                text="❌ Analysis Error",
+                blocks=format_error_blocks(error_msg, "Ingestion")
+            )
+            return
+
+        raw_text = ingestion_res["raw_text"]
+
+        # Stage 2: Claim Extraction
+        set_status(client, channel, thread_ts, "extracting claim...")
+        claim_res = extract_claim(raw_text)
+        if not claim_res.get("success"):
+            error_msg = claim_res.get("error", "Unknown claim extraction error.")
+            say(
+                text="❌ Analysis Error",
+                blocks=format_error_blocks(error_msg, "Claim Extraction")
+            )
+            return
+
+        extracted_claim_text = claim_res["claim"]
+        claim_type = claim_res["claim_type"]
+        compared_items = claim_res.get("compared_items")
+
+        # If it is not a checkable claim, skip verification & verdict and show guidance
+        if claim_type == "other":
+            guidance_blocks = format_guidance_blocks(text)
+            say(
+                text="ℹ️ Verity Guidance",
+                blocks=guidance_blocks
+            )
+            return
+
+        # Stage 3 & 4: Agent Reasoning (Search & Synthesis Loop)
+        set_status(client, channel, thread_ts, "analyzing claim and gathering evidence...")
+        agent_res = run_agent(extracted_claim_text)
+        if not agent_res.get("success"):
+            error_msg = agent_res.get("error", "Unknown agent error.")
+            say(
+                text="❌ Analysis Error",
+                blocks=format_error_blocks(error_msg, "Agentic Verification")
+            )
+            return
+
+        # Retrieve workspace memory (RTS search)
+        workspace_discussions = search_workspace_history(extracted_claim_text)
+
+        # Success: post final blocks
+        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions)
+        say(
+            text=f"⚖️ Verity Verdict: {agent_res.get('verdict')}",
+            blocks=blocks
+        )
+
+
+    except Exception as exc:
+        logger.error(f"Unexpected error in assistant pipeline runner: {exc}", exc_info=True)
+        say(
+            text="❌ Analysis Error",
+            blocks=format_error_blocks(f"Unexpected system error: {exc}", "Orchestration")
+        )
+
+
 def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> None:
     """Run the 4-stage pipeline and post the updated result in a thread."""
     # Post initial "analyzing" message
@@ -293,43 +514,31 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
             )
             return
 
-        # Stage 3: Verification
-        client.chat_update(channel=channel, ts=message_ts, text="🔍 *Verity is analyzing: searching for evidence...*")
-        verification_res = verify_claim(extracted_claim_text, claim_type, compared_items)
-        if not verification_res.get("success"):
-            error_msg = verification_res.get("error", "Unknown verification error.")
+        # Stage 3 & 4: Agent Reasoning (Search & Synthesis Loop)
+        client.chat_update(channel=channel, ts=message_ts, text="🔍 *Verity is analyzing: gathering evidence and synthesizing verdict...*")
+        agent_res = run_agent(extracted_claim_text)
+        if not agent_res.get("success"):
+            error_msg = agent_res.get("error", "Unknown agent error.")
             client.chat_update(
                 channel=channel,
                 ts=message_ts,
                 text="❌ Analysis Error",
-                blocks=format_error_blocks(error_msg, "Verification")
+                blocks=format_error_blocks(error_msg, "Agentic Verification")
             )
             return
 
-        evidence = verification_res["evidence"]
-        workspace_discussions = verification_res.get("workspace_discussions", [])
-
-        # Stage 4: Verdict Synthesis
-        client.chat_update(channel=channel, ts=message_ts, text="🔍 *Verity is analyzing: synthesizing verdict...*")
-        verdict_res = synthesise_verdict(extracted_claim_text, evidence)
-        if not verdict_res.get("success"):
-            error_msg = verdict_res.get("error", "Unknown verdict synthesis error.")
-            client.chat_update(
-                channel=channel,
-                ts=message_ts,
-                text="❌ Analysis Error",
-                blocks=format_error_blocks(error_msg, "Verdict Synthesis")
-            )
-            return
+        # Retrieve workspace memory (RTS search)
+        workspace_discussions = search_workspace_history(extracted_claim_text)
 
         # Success: update message with final blocks
-        blocks = format_verdict_blocks(extracted_claim_text, verdict_res, workspace_discussions)
+        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions)
         client.chat_update(
             channel=channel,
             ts=message_ts,
-            text=f"⚖️ Verity Verdict: {verdict_res.get('verdict')}",
+            text=f"⚖️ Verity Verdict: {agent_res.get('verdict')}",
             blocks=blocks
         )
+
 
     except Exception as exc:
         logger.error(f"Unexpected error in pipeline runner: {exc}", exc_info=True)
@@ -341,7 +550,176 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
         )
 
 # ---------------------------------------------------------------------------
-# Event Handlers
+# App Home & Interactive Action Handlers
+# ---------------------------------------------------------------------------
+
+@app.event("app_home_opened")
+def handle_app_home_opened(event, client):
+    """Triggered when a user opens the App Home page."""
+    user_id = event["user"]
+    logger.info(f"App Home opened by user: {user_id}")
+    try:
+        client.views_publish(
+            user_id=user_id,
+            view=get_home_tab_view()
+        )
+    except Exception as exc:
+        logger.error(f"Error publishing App Home view: {exc}")
+
+
+@app.action("check_sample_claim")
+def handle_check_sample_claim(ack, body, client):
+    """Run a claim check in a background thread and render the verdict in a modal."""
+    ack()
+    
+    trigger_id = body["trigger_id"]
+    claim = body["actions"][0]["value"]
+    
+    # Define initial loading modal view
+    initial_view = {
+        "type": "modal",
+        "title": {
+            "type": "plain_text",
+            "text": "Verity Live Check"
+        },
+        "close": {
+            "type": "plain_text",
+            "text": "Close"
+        },
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"🔍 *Verity is analyzing the claim:*\n> *\"{claim}\"*"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "⏳ Running claim ingestion, Brave Search MCP queries, authority source weighting, and verdict synthesis..."
+                }
+            }
+        ]
+    }
+    
+    try:
+        res = client.views_open(trigger_id=trigger_id, view=initial_view)
+        view_id = res["view"]["id"]
+    except Exception as exc:
+        logger.error(f"Error opening demo modal: {exc}")
+        return
+
+    def run_check():
+        try:
+            # 1. Ingestion
+            ingestion_res = ingest(claim)
+            raw_text = ingestion_res.get("raw_text") or claim
+            
+            # 2. Claim Extraction
+            claim_res = extract_claim(raw_text)
+            extracted_claim = claim_res.get("claim") or claim
+            claim_type = claim_res.get("claim_type") or "single_fact"
+            compared_items = claim_res.get("compared_items")
+            
+            # 3 & 4. Agent Reasoning (Search & Synthesis)
+            agent_res = run_agent(extracted_claim)
+            if not agent_res.get("success"):
+                raise RuntimeError(agent_res.get("error", "Agent failed to synthesize verdict."))
+            
+            workspace_discussions = search_workspace_history(extracted_claim)
+            
+            # 5. Build Modal Blocks (filtering out any top-level header block)
+            verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions)
+            filtered_blocks = [b for b in verdict_blocks if b.get("type") != "header"]
+            
+            final_view = {
+                "type": "modal",
+                "title": {
+                    "type": "plain_text",
+                    "text": "Verity Live Check"
+                },
+                "close": {
+                    "type": "plain_text",
+                    "text": "Close"
+                },
+                "blocks": filtered_blocks
+            }
+            
+            client.views_update(view_id=view_id, view=final_view)
+            
+        except Exception as exc:
+            logger.error(f"Error in modal live check: {exc}", exc_info=True)
+            error_view = {
+                "type": "modal",
+                "title": {
+                    "type": "plain_text",
+                    "text": "Verity Error"
+                },
+                "close": {
+                    "type": "plain_text",
+                    "text": "Close"
+                },
+                "blocks": [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"❌ An error occurred during the live check:\n> {exc}"
+                        }
+                    }
+                ]
+            }
+            try:
+                client.views_update(view_id=view_id, view=error_view)
+            except Exception:
+                pass
+
+    threading.Thread(target=run_check, daemon=True).start()
+
+
+# ---------------------------------------------------------------------------
+# Assistant Event Handlers
+# ---------------------------------------------------------------------------
+
+
+@assistant.thread_started
+def handle_thread_started(say, set_suggested_prompts):
+    """Triggered when a user opens/starts a thread with the Assistant."""
+    logger.info("Assistant thread started.")
+    try:
+        set_suggested_prompts(prompts=[
+            "Lentils have more protein than eggs.",
+            "Fact-check: Quinoa is a complete protein.",
+            "How do authority tiers work?"
+        ])
+    except Exception as exc:
+        logger.error(f"Error setting suggested prompts: {exc}")
+    
+    say(
+        text=(
+            "👋 Hello! I am **Verity**, your workspace fact-checking assistant.\n\n"
+            "Send me a **factual claim** or **link** (YouTube video or news article) to verify it. "
+            "I will query Brave Search MCP, weight the evidence by authority tier, and post a verdict.\n\n"
+            "What claim would you like to check?"
+        )
+    )
+
+
+@assistant.user_message
+def handle_assistant_message(message, say, client):
+    """Triggered when the user sends a message in the Assistant thread."""
+    text = message.get("text", "").strip()
+    thread_ts = message.get("thread_ts") or message.get("ts")
+    channel = message.get("channel")
+    
+    logger.info(f"Assistant received message: {text}")
+    run_pipeline_and_reply_assistant(text, channel, thread_ts, client, say)
+
+
+# ---------------------------------------------------------------------------
+# Legacy Event Handlers (for backward compatibility / channel mentions)
 # ---------------------------------------------------------------------------
 
 @app.event("app_mention")
@@ -358,20 +736,9 @@ def handle_mention(event, client, say):
 
 @app.event("message")
 def handle_message(event, client, say):
-    """Triggered on any message the bot can see. Auto-respond only in DMs."""
-    # Ignore messages from bots/subtypes to prevent loops
-    if event.get("bot_id") or event.get("subtype") == "bot_message":
-        return
+    """Legacy handler. Direct messages are now processed by the Assistant middleware."""
+    pass
 
-    channel = event.get("channel")
-    channel_type = event.get("channel_type")
-
-    # Respond automatically only if it is a DM
-    is_dm = channel_type == "im" or (channel and channel.startswith("D"))
-    if is_dm:
-        text = event.get("text", "")
-        thread_ts = event.get("thread_ts") or event.get("ts")
-        run_pipeline_and_reply(text, channel, thread_ts, client)
 
 
 # ---------------------------------------------------------------------------
