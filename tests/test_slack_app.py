@@ -328,3 +328,25 @@ class TestSlackAppOrchestration:
         update_kwargs = mock_client.views_update.call_args[1]
         assert update_kwargs["view_id"] == "V12345"
         assert update_kwargs["view"]["type"] == "modal"
+
+
+class TestAppInitialization:
+
+    @patch("slack_sdk.WebClient.auth_test")
+    def test_create_app_success(self, mock_auth, monkeypatch):
+        # 1. Setup fake environment variables to satisfy Bolt App constraints
+        monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-fake-token")
+        monkeypatch.setenv("SLACK_SIGNING_SECRET", "fake-secret")
+
+        # Mock auth.test to return a dummy successful response
+        mock_auth.return_value = {"ok": True, "bot_id": "B123"}
+
+        # 2. Import create_app and build app
+        from src.slack_app import create_app
+        app = create_app()
+
+        # 3. Assert it builds a valid Bolt App instance
+        from slack_bolt import App
+        assert isinstance(app, App)
+
+

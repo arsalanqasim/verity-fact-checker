@@ -34,15 +34,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Bolt App
-app = App(
-    token=os.environ.get("SLACK_BOT_TOKEN"),
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-)
+# Bolt App is initialized via create_app() to make the module test-friendly.
 
-# Initialize Assistant Middleware
-assistant = Assistant()
-app.use(assistant)
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +592,6 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
 # App Home & Interactive Action Handlers
 # ---------------------------------------------------------------------------
 
-@app.event("app_home_opened")
 def handle_app_home_opened(event, client):
     """Triggered when a user opens the App Home page."""
     user_id = event["user"]
@@ -613,7 +605,6 @@ def handle_app_home_opened(event, client):
         logger.error(f"Error publishing App Home view: {exc}")
 
 
-@app.action("check_sample_claim")
 def handle_check_sample_claim(ack, body, client):
     """Run a claim check in a background thread and render the verdict in a modal."""
     ack()
@@ -735,7 +726,6 @@ def handle_check_sample_claim(ack, body, client):
 # ---------------------------------------------------------------------------
 
 
-@assistant.thread_started
 def handle_thread_started(say, set_suggested_prompts):
     """Triggered when a user opens/starts a thread with the Assistant."""
     logger.info("Assistant thread started.")
@@ -758,7 +748,6 @@ def handle_thread_started(say, set_suggested_prompts):
     )
 
 
-@assistant.user_message
 def handle_assistant_message(message, say, client):
     """Triggered when the user sends a message in the Assistant thread."""
     text = message.get("text", "").strip()
@@ -773,7 +762,6 @@ def handle_assistant_message(message, say, client):
 # Legacy Event Handlers (for backward compatibility / channel mentions)
 # ---------------------------------------------------------------------------
 
-@app.event("app_mention")
 def handle_mention(event, client, say):
     """Triggered when @Verity is mentioned in a channel."""
     thread_ts = event.get("thread_ts") or event.get("ts")
@@ -785,11 +773,39 @@ def handle_mention(event, client, say):
     run_pipeline_and_reply(cleaned_text, event["channel"], thread_ts, client)
 
 
-@app.event("message")
 def handle_message(event, client, say):
     """Legacy handler. Direct messages are now processed by the Assistant middleware."""
     pass
 
+
+
+def create_app() -> App:
+    """
+    Constructs and returns the Slack Bolt App with Assistant middleware.
+    Registers event and action handlers dynamically to avoid requiring Slack tokens at import time.
+    """
+    bot_token = os.environ.get("SLACK_BOT_TOKEN")
+    signing_secret = os.environ.get("SLACK_SIGNING_SECRET")
+    
+    app = App(
+        token=bot_token,
+        signing_secret=signing_secret,
+    )
+    
+    assistant = Assistant()
+    app.use(assistant)
+    
+    # Register app events and actions
+    app.event("app_home_opened")(handle_app_home_opened)
+    app.action("check_sample_claim")(handle_check_sample_claim)
+    app.event("app_mention")(handle_mention)
+    app.event("message")(handle_message)
+    
+    # Register assistant event handlers
+    assistant.thread_started(handle_thread_started)
+    assistant.user_message(handle_assistant_message)
+    
+    return app
 
 
 # ---------------------------------------------------------------------------
@@ -803,5 +819,6 @@ if __name__ == "__main__":
     if not slack_app_token:
         logger.error("SLACK_APP_TOKEN is not set. Cannot start Socket Mode.")
     else:
+        app = create_app()
         handler = SocketModeHandler(app, slack_app_token)
         handler.start()

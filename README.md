@@ -74,15 +74,33 @@ Then edit `.env` and fill in every value:
 
 ## 5. Set up the Slack app
 
-### Required bot token scopes (`OAuth & Permissions`)
+## Required Slack OAuth Bot Scopes
 
-| Scope | Reason |
-|---|---|
-| `app_mentions:read` | Receive `@Verity` mentions |
-| `chat:write` | Post verdict replies |
-| `channels:history` | Read messages in public channels |
-| `groups:history` | Read messages in private channels the bot is added to |
-| `channels:read` | List channels |
+Here are the Slack OAuth Bot scopes required by this project's API calls and event integrations:
+
+- app_mentions:read
+- chat:write
+- assistant:write
+- channels:history
+- groups:history
+- canvases:write
+- lists:write
+
+### Slack App Setup & Scopes Configuration
+
+To configure the scopes for your Slack App:
+
+1. Navigate to the **Slack App Dashboard** (https://api.slack.com/apps) and select your application.
+2. Go to **OAuth & Permissions** in the left sidebar.
+3. Scroll down to the **Scopes** section.
+4. Under **Bot Token Scopes**, click **Add an OAuth Scope** and add each of the scopes listed in the "Required Slack OAuth Bot Scopes" section.
+5. If utilizing the optional Workspace Memory search (Real-Time Search API), scroll to **User Token Scopes** and add the required user scopes listed below.
+
+> [!IMPORTANT]
+> **Reinstalling Your App is Mandatory:**
+> Whenever you add new OAuth scopes or modify existing permissions, you **must reinstall the app** to your workspace. 
+> Existing bot tokens do **not** automatically gain new permissions or scopes that are added after the token is issued. If you do not reinstall the app, API calls requiring the new scopes will fail immediately with a `missing_scope` error.
+
 
 ### Required user token scopes (`OAuth & Permissions` - Optional for Workspace Memory)
 

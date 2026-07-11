@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 from dotenv import load_dotenv
+from slack_sdk.errors import SlackApiError
 
 load_dotenv()
 
@@ -74,11 +75,19 @@ def create_fact_check_canvas(client, claim: str, agent_res: dict) -> str | None:
         if res.get("ok"):
             canvas_id = res["canvas_id"]
             canvas_url = f"https://slack.com/canvas/{canvas_id}"
-            logger.info(f"Successfully created Slack Canvas: {canvas_url}")
+            logger.info(f"Created Canvas {canvas_id}")
             return canvas_url
             
+    except SlackApiError as exc:
+        error_code = exc.response.get("error") if exc.response else None
+        if error_code in ("missing_scope", "feature_not_enabled", "method_not_supported"):
+            missing = exc.response.get("needed") or "canvases:write"
+            logger.warning(f"Skipped because of permissions: missing {missing}")
+            return None
+        logger.error(f"Slack API error during Canvas creation: {exc}", exc_info=True)
+        return None
     except Exception as exc:
-        logger.warning(f"Slack Canvas creation skipped or failed: {exc}")
+        logger.error(f"Unexpected error during Canvas creation: {exc}", exc_info=True)
         return None
 
 # ---------------------------------------------------------------------------
@@ -135,9 +144,17 @@ def add_claim_to_list(client, claim: str, agent_res: dict) -> bool:
         )
         
         if res.get("ok"):
-            logger.info(f"Successfully added claim to Slack List: {res.get('id')}")
+            logger.info("Added claim to Slack List")
             return True
             
+    except SlackApiError as exc:
+        error_code = exc.response.get("error") if exc.response else None
+        if error_code in ("missing_scope", "feature_not_enabled", "method_not_supported"):
+            missing = exc.response.get("needed") or "lists:write"
+            logger.warning(f"Skipped because of permissions: missing {missing}")
+            return False
+        logger.error(f"Slack API error during Lists logging: {exc}", exc_info=True)
+        return False
     except Exception as exc:
-        logger.warning(f"Slack Lists logging skipped or failed: {exc}")
+        logger.error(f"Unexpected error during Lists logging: {exc}", exc_info=True)
         return False

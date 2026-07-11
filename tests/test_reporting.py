@@ -50,6 +50,39 @@ class TestCanvasReporting:
         url = create_fact_check_canvas(mock_client, claim, agent_res)
         assert url is None
 
+    def test_create_fact_check_canvas_permission_skipped(self):
+        from slack_sdk.errors import SlackApiError
+        mock_client = MagicMock()
+        
+        # Setup mock SlackApiError response
+        mock_response = MagicMock()
+        mock_response.get.side_effect = lambda k, default=None: {"error": "missing_scope", "needed": "canvases:write"}.get(k, default)
+        exc = SlackApiError("Slack API Error", mock_response)
+        mock_client.canvases_create.side_effect = exc
+
+        claim = "Bananas are radioactive."
+        agent_res = {"verdict": "Misleading"}
+
+        url = create_fact_check_canvas(mock_client, claim, agent_res)
+        assert url is None
+
+    def test_create_fact_check_canvas_unexpected_slack_error(self):
+        from slack_sdk.errors import SlackApiError
+        mock_client = MagicMock()
+        
+        # Setup mock SlackApiError response for some other error code
+        mock_response = MagicMock()
+        mock_response.get.side_effect = lambda k, default=None: {"error": "fatal_error"}.get(k, default)
+        exc = SlackApiError("Slack API Error", mock_response)
+        mock_client.canvases_create.side_effect = exc
+
+        claim = "Bananas are radioactive."
+        agent_res = {"verdict": "Misleading"}
+
+        url = create_fact_check_canvas(mock_client, claim, agent_res)
+        assert url is None
+
+
 
 class TestListsLogging:
 
@@ -114,3 +147,38 @@ class TestListsLogging:
 
         res = add_claim_to_list(mock_client, claim, agent_res)
         assert res is False
+
+    def test_add_claim_to_list_permission_skipped(self, monkeypatch):
+        monkeypatch.setenv("SLACK_LIST_ID", "L999")
+        monkeypatch.setenv("SLACK_LIST_COL_CLAIM", "C_CLAIM")
+        from slack_sdk.errors import SlackApiError
+        
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.get.side_effect = lambda k, default=None: {"error": "feature_not_enabled", "needed": "lists:write"}.get(k, default)
+        exc = SlackApiError("Slack API Error", mock_response)
+        mock_client.slackLists_items_create.side_effect = exc
+
+        claim = "Bananas are radioactive."
+        agent_res = {"verdict": "Misleading"}
+
+        res = add_claim_to_list(mock_client, claim, agent_res)
+        assert res is False
+
+    def test_add_claim_to_list_unexpected_slack_error(self, monkeypatch):
+        monkeypatch.setenv("SLACK_LIST_ID", "L999")
+        monkeypatch.setenv("SLACK_LIST_COL_CLAIM", "C_CLAIM")
+        from slack_sdk.errors import SlackApiError
+        
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.get.side_effect = lambda k, default=None: {"error": "rate_limited"}.get(k, default)
+        exc = SlackApiError("Slack API Error", mock_response)
+        mock_client.slackLists_items_create.side_effect = exc
+
+        claim = "Bananas are radioactive."
+        agent_res = {"verdict": "Misleading"}
+
+        res = add_claim_to_list(mock_client, claim, agent_res)
+        assert res is False
+
