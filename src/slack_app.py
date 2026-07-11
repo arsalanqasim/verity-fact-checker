@@ -1029,7 +1029,7 @@ def handle_message(event, client, say):
             verdict = agent_res.get("verdict", "Unverifiable")
             if verdict in ("False", "Misleading"):
                 user_id = event.get("user")
-                thread_ts = event.get("thread_ts") or event.get("ts")
+                thread_ts = event.get("thread_ts")
 
                 # Retrieve prior workspace memory & Canvas report link
                 workspace_discussions = search_workspace_history(claim_text)
@@ -1054,13 +1054,16 @@ def handle_message(event, client, say):
                 # Remove interactive actions block to prevent confusion for the warned user
                 blocks = [b for b in blocks if b.get("type") != "actions"]
 
-                client.chat_postEphemeral(
-                    channel=channel,
-                    user=user_id,
-                    thread_ts=thread_ts,
-                    text=f"⚠️ Verity Warning: Link verified as {verdict}",
-                    attachments=[{"color": get_verdict_color(verdict), "blocks": blocks}]
-                )
+                post_kwargs = {
+                    "channel": channel,
+                    "user": user_id,
+                    "text": f"⚠️ Verity Warning: Link verified as {verdict}",
+                    "attachments": [{"color": get_verdict_color(verdict), "blocks": blocks}]
+                }
+                if thread_ts:
+                    post_kwargs["thread_ts"] = thread_ts
+
+                client.chat_postEphemeral(**post_kwargs)
                 logger.info(f"[Proactive Scanner] Sent ephemeral warning to user {user_id} in channel {channel}")
         except Exception as exc:
             logger.error(f"Error in proactive scanner: {exc}", exc_info=True)

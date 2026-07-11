@@ -515,7 +515,7 @@ class TestProactiveScanner:
         post_kwargs = mock_client.chat_postEphemeral.call_args[1]
         assert post_kwargs["channel"] == "C12345"
         assert post_kwargs["user"] == "U12345"
-        assert post_kwargs["thread_ts"] == "1625000000.0001"
+        assert "thread_ts" not in post_kwargs
         assert "verified as *FALSE*" in post_kwargs["attachments"][0]["blocks"][0]["text"]["text"]
 
     def test_handle_message_ignores_dm(self):
