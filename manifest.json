@@ -25,7 +25,8 @@
                 "groups:history",
                 "canvases:write",
                 "lists:write",
-                "auth:read"
+                "auth:read",
+                "channels:join"
             ]
         }
     },

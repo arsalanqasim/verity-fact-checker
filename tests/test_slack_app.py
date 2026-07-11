@@ -350,3 +350,106 @@ class TestAppInitialization:
         assert isinstance(app, App)
 
 
+class TestShareModalSubmit:
+
+    def test_handle_share_modal_submit_not_in_channel_joins_and_retries(self):
+        from src.slack_app import handle_share_modal_submit
+        from slack_sdk.errors import SlackApiError
+        from unittest.mock import ANY
+
+        mock_ack = MagicMock()
+        mock_client = MagicMock()
+        
+        # Configure chat_postMessage to raise not_in_channel SlackApiError on first call,
+        # and succeed on the second call.
+        mock_response = MagicMock()
+        mock_response.get.side_effect = lambda k, default=None: {"error": "not_in_channel"}.get(k, default)
+        exc = SlackApiError("Slack API Error", mock_response)
+        
+        mock_client.chat_postMessage.side_effect = [exc, {"ok": True}]
+
+        body = {
+            "user": {"id": "U12345"},
+            "view": {
+                "state": {
+                    "values": {
+                        "select_channel_block": {
+                            "selected_channel": {
+                                "selected_conversation": "C99999"
+                            }
+                        },
+                        "comment_block": {
+                            "comment_input": {
+                                "value": "Check this out!"
+                            }
+                        }
+                    }
+                },
+                "private_metadata": '{"claim": "Lentils have protein", "verdict": "True", "summary": "Lentils are high in protein.", "canvas_url": "https://verity.slack.com/docs/T/CAN"}'
+            }
+        }
+
+        handle_share_modal_submit(mock_ack, body, mock_client)
+
+        # Verify ack was called
+        mock_ack.assert_called_once()
+        
+        # Verify conversations_join was called to join the channel
+        mock_client.conversations_join.assert_called_once_with(channel="C99999")
+        
+        # Verify chat_postMessage was called twice (first failed, second succeeded after join)
+        assert mock_client.chat_postMessage.call_count == 2
+        mock_client.chat_postMessage.assert_any_call(
+            channel="C99999",
+            text="Verity Fact Check Shared: Lentils have protein",
+            blocks=ANY
+        )
+
+    def test_handle_share_modal_submit_failure_sends_dm(self):
+        from src.slack_app import handle_share_modal_submit
+        from slack_sdk.errors import SlackApiError
+        from unittest.mock import ANY
+
+        mock_ack = MagicMock()
+        mock_client = MagicMock()
+        
+        # chat_postMessage always raises an error
+        mock_response = MagicMock()
+        mock_response.get.side_effect = lambda k, default=None: {"error": "some_other_error"}.get(k, default)
+        exc = SlackApiError("Slack API Error", mock_response)
+        
+        mock_client.chat_postMessage.side_effect = exc
+
+        body = {
+            "user": {"id": "U12345"},
+            "view": {
+                "state": {
+                    "values": {
+                        "select_channel_block": {
+                            "selected_channel": {
+                                "selected_conversation": "C99999"
+                            }
+                        },
+                        "comment_block": {
+                            "comment_input": {
+                                "value": "Check this out!"
+                            }
+                        }
+                    }
+                },
+                "private_metadata": '{"claim": "Lentils have protein", "verdict": "True", "summary": "Lentils are high in protein.", "canvas_url": "https://verity.slack.com/docs/T/CAN"}'
+            }
+        }
+
+        handle_share_modal_submit(mock_ack, body, mock_client)
+
+        # Verify ack was called
+        mock_ack.assert_called_once()
+        
+        # Verify it attempted to send a DM to user U12345 after the error
+        mock_client.chat_postMessage.assert_called_with(
+            channel="U12345",
+            text=ANY
+        )
+
+

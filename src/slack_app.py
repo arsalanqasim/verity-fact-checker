@@ -963,6 +963,8 @@ def handle_message(event, client, say):
     """
     # Check if the message is in a public or private channel (not a direct message)
     channel = event.get("channel", "")
+    logger.info(f"[Proactive Scanner] Received message event in channel {channel} (subtype: {event.get('subtype')})")
+    
     if channel.startswith("D"):
         return
 
@@ -1320,13 +1322,40 @@ def handle_share_modal_submit(ack, body, client):
         })
         
     try:
-        client.chat_postMessage(
-            channel=target_channel,
-            text=f"Verity Fact Check Shared: {claim}",
-            blocks=blocks
-        )
+        from slack_sdk.errors import SlackApiError
+        try:
+            client.chat_postMessage(
+                channel=target_channel,
+                text=f"Verity Fact Check Shared: {claim}",
+                blocks=blocks
+            )
+        except SlackApiError as e:
+            if e.response.get("error") == "not_in_channel":
+                logger.info(f"Bot not in channel {target_channel}. Attempting to join...")
+                client.conversations_join(channel=target_channel)
+                # Retry posting the message
+                client.chat_postMessage(
+                    channel=target_channel,
+                    text=f"Verity Fact Check Shared: {claim}",
+                    blocks=blocks
+                )
+            else:
+                raise
     except Exception as exc:
         logger.error(f"Error posting shared claim to channel: {exc}")
+        # Send a DM to the user explaining that posting failed
+        try:
+            sharing_user = body["user"]["id"]
+            client.chat_postMessage(
+                channel=sharing_user,
+                text=(
+                    f"⚠️ *Verity Share Failed:*\n"
+                    f"I couldn't post the fact-check report for *\"{claim}\"* to <#{target_channel}>. "
+                    f"If it is a private channel, please invite me (by typing `/invite @Verity` in the channel) before sharing!"
+                )
+            )
+        except Exception as dm_exc:
+            logger.error(f"Failed to send failure notification DM to user: {dm_exc}")
 
 
 def handle_view_report_canvas(ack):
