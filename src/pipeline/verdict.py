@@ -3,7 +3,7 @@ Stage 4 — Verdict Synthesis
 
 Responsibility:
   Given the weighted evidence bundle from the Verification stage, make a
-  final LLM call (Gemini, gemini-2.5-flash) that produces a structured verdict ready for
+  final LLM call (Gemini, gemini-3.1-flash-lite) that produces a structured verdict ready for
   Slack delivery.
 
 Key design decisions:

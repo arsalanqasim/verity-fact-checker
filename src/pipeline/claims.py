@@ -4,10 +4,10 @@ Stage 2 — Claim Extraction
 Responsibility:
   Given the raw text produced by the Ingestion stage, identify the specific,
   checkable claim(s) contained in that text via a structured LLM call to the
-  Gemini API (Google AI Studio, gemini-2.5-flash).
+  Gemini API (Google AI Studio, gemini-3.1-flash-lite).
 
 Key design decisions:
-  - Uses Gemini (gemini-2.5-flash) with structured JSON output via
+  - Uses Gemini (gemini-3.1-flash-lite) with structured JSON output via
     ``response_mime_type="application/json"`` + ``response_schema`` (Pydantic).
     No free-text parsing anywhere in this module.
   - Correctly classifies claim *type*:
