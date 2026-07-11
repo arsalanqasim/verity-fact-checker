@@ -532,7 +532,7 @@ def get_home_tab_view() -> dict:
                         "emoji": True
                     },
                     "value": "Lentils have more protein per 100g than eggs.",
-                    "action_id": "check_sample_claim",
+                    "action_id": "check_sample_claim_1",
                     "style": "primary"
                 },
                 {
@@ -543,7 +543,7 @@ def get_home_tab_view() -> dict:
                         "emoji": True
                     },
                     "value": "The Eiffel Tower stands 330 metres tall including its antenna.",
-                    "action_id": "check_sample_claim"
+                    "action_id": "check_sample_claim_2"
                 },
                 {
                     "type": "button",
@@ -553,7 +553,7 @@ def get_home_tab_view() -> dict:
                         "emoji": True
                     },
                     "value": "Bananas are radioactive enough to cause immediate radiation poisoning.",
-                    "action_id": "check_sample_claim"
+                    "action_id": "check_sample_claim_3"
                 }
             ]
         },
@@ -1408,7 +1408,7 @@ def create_app() -> App:
     
     # Register app events and actions
     app.event("app_home_opened")(handle_app_home_opened)
-    app.action("check_sample_claim")(handle_check_sample_claim)
+    app.action(re.compile("^check_sample_claim(_\\d+)?$"))(handle_check_sample_claim)
     app.event("app_mention")(handle_mention)
     app.event("message")(handle_message)
     app.action("feedback_positive")(handle_feedback_positive)

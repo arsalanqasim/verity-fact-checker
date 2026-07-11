@@ -6,8 +6,7 @@
     },
     "features": {
         "app_home": {
-            "home_tab_enabled": true,
-            "share_tab_enabled": false
+            "home_tab_enabled": true
         },
         "bot_user": {
             "display_name": "Verity",
@@ -25,7 +24,6 @@
                 "groups:history",
                 "canvases:write",
                 "lists:write",
-                "auth:read",
                 "channels:join"
             ]
         }
@@ -45,41 +43,5 @@
         "org_deploy_enabled": false,
         "socket_mode_enabled": true,
         "token_rotation_enabled": false
-    },
-    "functions": {
-        "verify_claim": {
-            "title": "Verify Claim",
-            "description": "Verifies a text claim or URL using the Verity pipeline, returning a weighted verdict and report.",
-            "input_parameters": {
-                "claim_or_link": {
-                    "type": "string",
-                    "title": "Claim or Link",
-                    "description": "The text statement or YouTube/article URL to verify.",
-                    "is_required": true
-                }
-            },
-            "output_parameters": {
-                "verdict": {
-                    "type": "string",
-                    "title": "Verdict",
-                    "description": "The fact-check verdict (True, False, Misleading, Unverifiable)."
-                },
-                "confidence": {
-                    "type": "string",
-                    "title": "Confidence Score",
-                    "description": "Normalized confidence score (0.0 to 1.0)."
-                },
-                "summary": {
-                    "type": "string",
-                    "title": "Summary",
-                    "description": "One-sentence evaluation summary."
-                },
-                "canvas_url": {
-                    "type": "string",
-                    "title": "Canvas URL",
-                    "description": "The generated detailed Slack Canvas report URL."
-                }
-            }
-        }
     }
 }

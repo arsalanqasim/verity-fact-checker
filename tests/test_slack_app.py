@@ -453,3 +453,82 @@ class TestShareModalSubmit:
         )
 
 
+class TestProactiveScanner:
+
+    @patch("src.slack_app.ingest")
+    @patch("src.slack_app.extract_claim")
+    @patch("src.slack_app.run_agent")
+    @patch("src.slack_app.search_workspace_history")
+    @patch("src.slack_app.create_fact_check_canvas")
+    @patch("threading.Thread")
+    def test_handle_message_starts_thread_on_factual_url(
+        self,
+        mock_thread,
+        mock_create_canvas,
+        mock_search_workspace,
+        mock_run_agent,
+        mock_extract,
+        mock_ingest
+    ):
+        from src.slack_app import handle_message
+        from unittest.mock import ANY
+
+        mock_client = MagicMock()
+        mock_say = MagicMock()
+
+        event = {
+            "channel": "C12345",
+            "text": "Check this vaccine shedding claim: https://politifact.com/factchecks/123",
+            "user": "U12345",
+            "ts": "1625000000.0001"
+        }
+
+        handle_message(event, mock_client, mock_say)
+
+        # Verify a thread was spawned to run the scan
+        mock_thread.assert_called_once()
+        thread_target = mock_thread.call_args[1]["target"]
+
+        # Setup mock returns to mock the thread's execution
+        mock_ingest.return_value = {"success": True, "raw_text": "Vaccines do not shed"}
+        mock_extract.return_value = {"success": True, "claim": "Vaccines do not shed", "claim_type": "single_fact"}
+        mock_run_agent.return_value = {
+            "success": True,
+            "verdict": "False",
+            "confidence": 1.0,
+            "summary": "Vaccines do not contain live virus and cannot shed.",
+            "sources": []
+        }
+        mock_search_workspace.return_value = []
+        mock_create_canvas.return_value = "https://verity.slack.com/docs/T/CAN"
+
+        # Execute the thread target synchronously
+        thread_target()
+
+        # Verify agent verification was called
+        mock_ingest.assert_called_once_with("https://politifact.com/factchecks/123")
+        mock_extract.assert_called_once_with("Vaccines do not shed")
+        mock_run_agent.assert_called_once_with("Vaccines do not shed", strict=True)
+
+        # Verify chat_postEphemeral was called because the verdict is False
+        mock_client.chat_postEphemeral.assert_called_once()
+        post_kwargs = mock_client.chat_postEphemeral.call_args[1]
+        assert post_kwargs["channel"] == "C12345"
+        assert post_kwargs["user"] == "U12345"
+        assert post_kwargs["thread_ts"] == "1625000000.0001"
+        assert "verified as *FALSE*" in post_kwargs["attachments"][0]["blocks"][0]["text"]["text"]
+
+    def test_handle_message_ignores_dm(self):
+        from src.slack_app import handle_message
+        mock_client = MagicMock()
+        mock_say = MagicMock()
+
+        event = {
+            "channel": "D12345",
+            "text": "https://politifact.com/factchecks/123"
+        }
+
+        handle_message(event, mock_client, mock_say)
+        mock_client.chat_postEphemeral.assert_not_called()
+
+
