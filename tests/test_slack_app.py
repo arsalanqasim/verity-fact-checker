@@ -112,7 +112,7 @@ class TestSlackAppOrchestration:
         # 4. Verify all pipeline stages were called
         mock_ingest.assert_called_once_with("Lentils have more protein than eggs.")
         mock_extract.assert_called_once_with("Lentils have more protein than eggs.")
-        mock_run_agent.assert_called_once_with("Lentils have more protein than eggs.")
+        mock_run_agent.assert_called_once_with("Lentils have more protein than eggs.", strict=True)
         mock_search_workspace.assert_called_once_with("Lentils have more protein than eggs.")
         mock_create_canvas.assert_called_once()
         mock_add_claim_list.assert_called_once()
@@ -224,7 +224,7 @@ class TestSlackAppOrchestration:
 
         mock_ingest.assert_called_once_with("Lentils have more protein than eggs.")
         mock_extract.assert_called_once_with("Lentils have more protein than eggs.")
-        mock_run_agent.assert_called_once_with("Lentils have more protein than eggs.")
+        mock_run_agent.assert_called_once_with("Lentils have more protein than eggs.", strict=True)
         mock_search_workspace.assert_called_once_with("Lentils have more protein than eggs.")
         mock_create_canvas.assert_called_once()
         mock_add_claim_list.assert_called_once()
@@ -254,7 +254,7 @@ class TestSlackAppOrchestration:
         publish_kwargs = mock_client.views_publish.call_args[1]
         assert publish_kwargs["user_id"] == "U99999"
         assert publish_kwargs["view"]["type"] == "home"
-        assert "⚖️ Verity Fact-Checking Hub" in publish_kwargs["view"]["blocks"][0]["text"]["text"]
+        assert "⚖️ Verity Portal Dashboard" in publish_kwargs["view"]["blocks"][0]["text"]["text"]
 
     @patch("src.slack_app.ingest")
     @patch("src.slack_app.extract_claim")

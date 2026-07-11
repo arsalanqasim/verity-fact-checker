@@ -37,7 +37,7 @@ class TestCanvasReporting:
         assert call_kwargs["title"] == "Verity Report: Bananas are radioactive."
         assert call_kwargs["document_content"]["type"] == "markdown"
         assert "# ⚖️ Verity Fact-Check Report" in call_kwargs["document_content"]["markdown"]
-        assert "Misleading" in call_kwargs["document_content"]["markdown"]
+        assert "MISLEADING" in call_kwargs["document_content"]["markdown"]
         assert "EPA" in call_kwargs["document_content"]["markdown"]
 
     def test_create_fact_check_canvas_failure(self):

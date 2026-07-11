@@ -40,26 +40,39 @@ def create_fact_check_canvas(client, claim: str, agent_res: dict) -> str | None:
         sources = agent_res.get("sources", [])
         
         # Build document content in standard Markdown format (required by Canvases API)
+        sources_md = ""
+        if sources:
+            sources_md += "| No. | Source Document / Page | Authority Tier | Link |\n"
+            sources_md += "|---|---|---|---|\n"
+            for idx, src in enumerate(sources, start=1):
+                tier = src.get("tier", 3)
+                tier_badge = "🟢 Tier 1 (Primary)" if tier == 1 else ("🟡 Tier 2 (Reputable)" if tier == 2 else "⚪ Tier 3 (General Web)")
+                title = src.get("title") or "Source Link"
+                url = src.get("url") or "#"
+                # Strip raw pipes to prevent table layout corruption
+                title_clean = str(title).replace("|", "-")
+                sources_md += f"| {idx} | {title_clean} | {tier_badge} | [Open Link]({url}) |\n"
+        else:
+            sources_md += "_No external sources cited for this claim._\n"
+
         md_content = (
             f"# ⚖️ Verity Fact-Check Report\n\n"
-            f"### Claim Evaluated\n"
+            f"**Claim Evaluated:**\n"
             f"> {claim}\n\n"
-            f"### Synthesis Verdict\n"
-            f"* **Verdict:** `{verdict}`\n"
-            f"* **Confidence Score:** `{confidence:.2f}`\n\n"
-            f"---\n\n"
-            f"## 📝 Executive Summary\n"
+            f"## 📊 Evaluation Summary\n\n"
+            f"| Parameter | Details |\n"
+            f"|---|---|\n"
+            f"| **Synthesis Verdict** | `{verdict.upper()}` |\n"
+            f"| **Confidence Level** | `{confidence * 100:.0f}%` |\n"
+            f"| **Timestamp** | _Generated in real-time_ |\n\n"
+            f"### 📝 Executive Summary\n"
             f"{summary}\n\n"
-            f"## 🛡️ Evidence & Citations\n"
+            f"## 🛡️ Sourced Evidence & Epistemic Authority Weighting\n"
+            f"Verity independently cross-referenced this claim against live indexed data, applying domain-based credibility scoring:\n\n"
+            f"{sources_md}\n\n"
+            f"---\n"
+            f"_Report compiled by Verity Fact-Checking Agent. Whitelist verification filter active._"
         )
-        
-        if sources:
-            for idx, src in enumerate(sources, start=1):
-                md_content += f"{idx}. **[{src.get('title')}]({src.get('url')})** (Tier {src.get('tier')})\n"
-        else:
-            md_content += "_No external sources cited for this claim._\n"
-            
-        md_content += "\n---\n_Report compiled automatically by Verity Fact-Checking Agent._"
 
         logger.info(f"Creating Slack Canvas report for: '{claim[:30]}...'")
         

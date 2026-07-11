@@ -114,14 +114,15 @@ Instructions:
    - Tier 1 (.gov, .edu, journals, PubMed, USDA) is highly trusted.
    - Tier 2 (established news wires, reputable news outlets, specialized fact-checkers) is moderately trusted.
    - Tier 3 (blogs, general web, social media, forums) is low trust.
-4. If the initial search results are insufficient, too narrow, or contradictory, refine your search strategy and call the tool again. Note: You do not need exhaustive research for well-established claims. Once you have 2–3 corroborating or contradicting sources, or once further searches are returning duplicate/unhelpful results, stop calling tools and produce your final verdict.
-5. Once you have gathered sufficient evidence, synthesize the final verdict:
+4. Autonomous Self-Correction: If a search query returns "No search results found" or only returns low-trust Tier 3 evidence, you MUST rewrite your query. Formulate a new query using alternative phrasings, synonyms, broader terms, or key nouns from the claim, and run search_web_evidence again. Do not give up after a single empty search.
+5. Note: You do not need exhaustive research for well-established claims. Once you have 2–3 corroborating or contradicting sources from Tier 1 or Tier 2, or once further searches are returning duplicate/unhelpful results, stop calling tools and produce your final verdict.
+6. Once you have gathered sufficient evidence, synthesize the final verdict:
    - True: The claim is fully supported by Tier-1 or Tier-2 evidence with no significant caveats.
    - False: The claim is directly contradicted by Tier-1 or Tier-2 evidence.
    - Misleading: The claim contains some truth but leaves out critical context, exaggerates, or misrepresents facts.
    - Unverifiable: There is not enough reliable Tier-1 or Tier-2 evidence to confirm or deny the claim, or the evidence is heavily contradictory/inconclusive.
-6. Enforce "Unverifiable" if there is no Tier-1 or Tier-2 evidence available at all.
-7. Populate the sources list with the actual titles and URLs of the pages you used from the search results, mapping them to their correct Tier (1, 2, or 3).
+7. Enforce "Unverifiable" if there is no Tier-1 or Tier-2 evidence available at all.
+8. Populate the sources list with the actual titles and URLs of the pages you used from the search results, mapping them to their correct Tier (1, 2, or 3).
 
 Your final output must conform to the required JSON schema.
 """
@@ -130,9 +131,9 @@ Your final output must conform to the required JSON schema.
 # Main Runner
 # ---------------------------------------------------------------------------
 
-_MODEL = "gemini-3.1-flash-lite"
+_MODEL = "gemini-2.5-flash"
 
-def run_agent(claim: str) -> dict:
+def run_agent(claim: str, strict: bool = True) -> dict:
     """
     Run the autonomous fact-checking agent on a claim.
     
@@ -301,7 +302,12 @@ def run_agent(claim: str) -> dict:
                 "Give your best verdict now based on the search evidence gathered above. "
                 "Do not call any more tools. "
                 "You MUST respond with a JSON conforming to the required verdict schema."
-            ) + url_constraint
+            )
+            if strict:
+                synthesis_user_prompt += "\nREMEMBER: You MUST enforce 'Unverifiable' if there is no Tier-1 or Tier-2 evidence available."
+            else:
+                synthesis_user_prompt += "\nNOTE: Since strict verification is disabled, you may use Tier-3 evidence (general web, blogs, forums) to synthesize a True/False/Misleading verdict if higher-tier sources are unavailable."
+            synthesis_user_prompt += url_constraint
         else:
             synthesis_user_prompt = (
                 "All web search attempts failed — no live evidence was retrieved. "
@@ -367,9 +373,28 @@ def run_agent(claim: str) -> dict:
         else:
             clean_sources = parsed.sources
 
+        # Mathematical Confidence Calibration:
+        # Enforce bounds to prevent model from hallucinating high confidence:
+        # - If there is no Tier 1 or Tier 2 evidence cited, cap confidence at 0.40.
+        # - If the verdict is Unverifiable, cap confidence at 0.30.
+        calibrated_confidence = parsed.confidence
+        has_high_tier_source = any(s.tier in (1, 2) for s in clean_sources)
+        if not has_high_tier_source:
+            calibrated_confidence = min(calibrated_confidence, 0.40)
+        if parsed.verdict == "Unverifiable":
+            calibrated_confidence = min(calibrated_confidence, 0.30)
+            
+        logger.info(
+            "[Agent Calibration] Raw confidence: %.2f -> Calibrated: %.2f (Verdict: %s, High-Tier Source: %s)",
+            parsed.confidence,
+            calibrated_confidence,
+            parsed.verdict,
+            has_high_tier_source
+        )
+
         return {
             "verdict": parsed.verdict,
-            "confidence": parsed.confidence,
+            "confidence": calibrated_confidence,
             "summary": parsed.summary,
             "sources": [
                 {"title": s.title, "url": s.url, "tier": s.tier}

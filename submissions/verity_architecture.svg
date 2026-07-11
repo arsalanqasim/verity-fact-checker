@@ -1,0 +1,124 @@
+<svg viewBox="0 0 1280 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f9d55"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="900" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="640" y="42" text-anchor="middle" font-size="26" font-weight="700" fill="#1a1f29">Verity — Fact-Checking Slack Agent</text>
+  <text x="640" y="66" text-anchor="middle" font-size="14" fill="#6b7280">Architecture Overview · Slack Agent Builder Hackathon — Slack Agent for Good</text>
+
+  <!-- User -->
+  <rect x="560" y="92" width="160" height="52" rx="10" fill="#4A154B"/>
+  <text x="640" y="123" text-anchor="middle" font-size="15" font-weight="600" fill="#ffffff">Slack User</text>
+
+  <line x1="640" y1="144" x2="640" y2="176" stroke="#5b6472" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="655" y="164" font-size="11" fill="#6b7280">message / mention</text>
+
+  <!-- Slack Platform Layer -->
+  <rect x="330" y="178" width="620" height="94" rx="12" fill="#f4f0f8" stroke="#4A154B" stroke-width="1.5"/>
+  <text x="350" y="200" font-size="13" font-weight="700" fill="#4A154B">SLACK PLATFORM LAYER  (slack_app.py)</text>
+  <rect x="350" y="210" width="170" height="48" rx="8" fill="#ffffff" stroke="#4A154B"/>
+  <text x="435" y="230" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Bolt SDK</text>
+  <text x="435" y="246" text-anchor="middle" font-size="10" fill="#6b7280">Socket Mode</text>
+
+  <rect x="540" y="210" width="170" height="48" rx="8" fill="#ffffff" stroke="#4A154B"/>
+  <text x="625" y="230" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Assistant SDK</text>
+  <text x="625" y="246" text-anchor="middle" font-size="10" fill="#6b7280">threads · suggested prompts</text>
+
+  <rect x="730" y="210" width="170" height="48" rx="8" fill="#ffffff" stroke="#4A154B"/>
+  <text x="815" y="230" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">App Home Tab</text>
+  <text x="815" y="246" text-anchor="middle" font-size="10" fill="#6b7280">claim history view</text>
+
+  <line x1="640" y1="272" x2="640" y2="304" stroke="#5b6472" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Agent Core -->
+  <rect x="290" y="306" width="700" height="150" rx="12" fill="#eef4ff" stroke="#2b6cb0" stroke-width="1.5"/>
+  <text x="310" y="328" font-size="13" font-weight="700" fill="#2b6cb0">AGENTIC CORE  (agent.py)</text>
+
+  <rect x="310" y="338" width="230" height="100" rx="8" fill="#ffffff" stroke="#2b6cb0"/>
+  <text x="425" y="358" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Manual Tool Loop</text>
+  <text x="425" y="374" text-anchor="middle" font-size="10" fill="#6b7280">Gemini 3.1 Flash Lite</text>
+  <text x="425" y="388" text-anchor="middle" font-size="10" fill="#6b7280">AFC disabled · cap 4 turns</text>
+  <text x="425" y="402" text-anchor="middle" font-size="10" fill="#6b7280">dedup + short-circuit</text>
+  <text x="425" y="416" text-anchor="middle" font-size="10" fill="#6b7280">full call/result logging</text>
+
+  <rect x="555" y="338" width="215" height="100" rx="8" fill="#ffffff" stroke="#2b6cb0"/>
+  <text x="662" y="358" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Forced Synthesis</text>
+  <text x="662" y="374" text-anchor="middle" font-size="10" fill="#6b7280">structured JSON output</text>
+  <text x="662" y="388" text-anchor="middle" font-size="10" fill="#6b7280">citation whitelist filter</text>
+  <text x="662" y="402" text-anchor="middle" font-size="10" fill="#6b7280">search-failure guard →</text>
+  <text x="662" y="416" text-anchor="middle" font-size="10" fill="#6b7280">"Unverifiable" fallback</text>
+
+  <rect x="785" y="338" width="185" height="100" rx="8" fill="#ffffff" stroke="#2b6cb0"/>
+  <text x="877" y="358" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Ingestion Tools</text>
+  <text x="877" y="378" text-anchor="middle" font-size="10" fill="#6b7280">trafilatura</text>
+  <text x="877" y="392" text-anchor="middle" font-size="10" fill="#6b7280">(article extraction)</text>
+  <text x="877" y="410" text-anchor="middle" font-size="10" fill="#6b7280">youtube-transcript-api</text>
+  <text x="877" y="424" text-anchor="middle" font-size="10" fill="#6b7280">(video transcripts)</text>
+
+  <!-- down to MCP client -->
+  <line x1="425" y1="456" x2="425" y2="490" stroke="#5b6472" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="440" y="478" font-size="11" fill="#6b7280">search_web_evidence()</text>
+
+  <!-- MCP client -->
+  <rect x="240" y="492" width="370" height="70" rx="10" fill="#fff7e6" stroke="#b7791f" stroke-width="1.5"/>
+  <text x="425" y="516" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Persistent MCP Client  (mcp_client.py)</text>
+  <text x="425" y="534" text-anchor="middle" font-size="10" fill="#6b7280">dedicated background thread + single event loop</text>
+  <text x="425" y="548" text-anchor="middle" font-size="10" fill="#6b7280">(run_coroutine_threadsafe — no cross-loop locks)</text>
+
+  <line x1="425" y1="562" x2="425" y2="596" stroke="#5b6472" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="440" y="584" font-size="11" fill="#6b7280">SSE (GET /sse, POST /messages)</text>
+
+  <!-- MCP server -->
+  <rect x="240" y="598" width="370" height="70" rx="10" fill="#e8f8ee" stroke="#1f9d55" stroke-width="1.5"/>
+  <text x="425" y="622" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1f29">Brave Search MCP Server</text>
+  <text x="425" y="640" text-anchor="middle" font-size="10" fill="#6b7280">Node / Express · SDK SSEServerTransport</text>
+  <text x="425" y="654" text-anchor="middle" font-size="10" fill="#6b7280">brave-search-mcp-sse</text>
+
+  <line x1="425" y1="668" x2="425" y2="700" stroke="#1f9d55" stroke-width="2" marker-end="url(#arrowGreen)"/>
+
+  <!-- Brave API -->
+  <rect x="300" y="702" width="250" height="52" rx="10" fill="#1f9d55"/>
+  <text x="425" y="733" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">Brave Search API</text>
+
+  <!-- evidence tiers annotation -->
+  <text x="620" y="612" font-size="10" fill="#6b7280">tiered source scoring</text>
+  <text x="620" y="626" font-size="10" fill="#6b7280">(Tier 1 primary → Tier 3 general)</text>
+
+  <!-- Reporting branch -->
+  <line x1="770" y1="381" x2="960" y2="381" stroke="#5b6472" stroke-width="2"/>
+  <line x1="960" y1="381" x2="960" y2="490" stroke="#5b6472" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="975" y="440" font-size="11" fill="#6b7280">verified verdict</text>
+
+  <rect x="850" y="492" width="330" height="140" rx="12" fill="#f4f0f8" stroke="#4A154B" stroke-width="1.5"/>
+  <text x="870" y="514" font-size="13" font-weight="700" fill="#4A154B">REPORTING LAYER  (reporting.py)</text>
+
+  <rect x="870" y="524" width="290" height="42" rx="8" fill="#ffffff" stroke="#4A154B"/>
+  <text x="1015" y="550" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1f29">Block Kit verdict reply → Slack thread</text>
+
+  <rect x="870" y="574" width="140" height="46" rx="8" fill="#ffffff" stroke="#4A154B"/>
+  <text x="940" y="594" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1f29">Slack Canvas</text>
+  <text x="940" y="608" text-anchor="middle" font-size="9" fill="#6b7280">full report</text>
+
+  <rect x="1020" y="574" width="140" height="46" rx="8" fill="#ffffff" stroke="#4A154B"/>
+  <text x="1090" y="594" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1f29">Slack Lists</text>
+  <text x="1090" y="608" text-anchor="middle" font-size="9" fill="#6b7280">claim tracking</text>
+
+  <!-- back to user -->
+  <path d="M 850 545 C 760 545 760 130 720 118" fill="none" stroke="#5b6472" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+  <text x="770" y="330" font-size="10" fill="#6b7280">reply posted to thread</text>
+
+  <!-- Legend -->
+  <rect x="60" y="790" width="1160" height="90" rx="10" fill="#fafafa" stroke="#e5e7eb"/>
+  <text x="80" y="812" font-size="12" font-weight="700" fill="#1a1f29">Safety Net</text>
+  <text x="80" y="830" font-size="10.5" fill="#4b5563">• Manual loop (AFC disabled) prevents runaway tool-call loops — hard cap of 4 turns before forced synthesis.</text>
+  <text x="80" y="846" font-size="10.5" fill="#4b5563">• Citation whitelist + post-processing filter: only URLs actually returned by Brave Search can appear as sources — hallucinated citations are stripped.</text>
+  <text x="80" y="862" font-size="10.5" fill="#4b5563">• If live search fails entirely, verdict is forced to "Unverifiable" (confidence ≤ 0.2) with no fabricated sources — never a confident answer from ungrounded knowledge.</text>
+</svg>

@@ -369,27 +369,31 @@ def _verify_sync(
     compared_items: Optional[list[str]],
 ) -> dict:
     """
-    Gather evidence for all queries **sequentially** using the sync
-    ``_call_brave_mcp`` helper, which delegates to the permanent background
-    event loop.  No ``asyncio.run()`` is used, so there is no event-loop
-    lifecycle conflict.
-
-    Queries run sequentially rather than concurrently.  For fact-checking
-    workloads (2-4 queries, ~200-500 ms each) this is fast enough and avoids
-    the complexity of managing concurrency across loop boundaries.
+    Gather evidence for all queries **concurrently** using a thread pool. Each thread
+    calls ``_gather_evidence_for_query``, which delegates to the background event loop.
+    No ``asyncio.run()`` is used, so there is no event-loop lifecycle conflict.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     queries = _build_queries(claim, claim_type, compared_items)
 
     all_evidence: list[dict] = []
     errors: list[str] = []
 
-    for query_str, label in queries:
-        try:
-            items = _gather_evidence_for_query(mcp_url, query_str, label)
-            all_evidence.extend(items)
-        except Exception as exc:
-            errors.append(f"Query '{label}' failed: {exc}")
-            logger.warning("Evidence query '%s' failed: %s", label, exc)
+    if queries:
+        with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+            future_to_label = {
+                executor.submit(_gather_evidence_for_query, mcp_url, query_str, label): label
+                for query_str, label in queries
+            }
+            for future in as_completed(future_to_label):
+                label = future_to_label[future]
+                try:
+                    items = future.result()
+                    all_evidence.extend(items)
+                except Exception as exc:
+                    errors.append(f"Query '{label}' failed: {exc}")
+                    logger.warning("Evidence query '%s' failed: %s", label, exc)
 
     if not all_evidence and errors:
         return {

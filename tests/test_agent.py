@@ -70,14 +70,14 @@ class TestAgentMocked:
         
         # Check first call (tool-seeking turn)
         first_call_kwargs = mock_client.models.generate_content.call_args_list[0][1]
-        assert first_call_kwargs["model"] == "gemini-3.1-flash-lite"
+        assert first_call_kwargs["model"] == "gemini-2.5-flash"
         registered_tools = first_call_kwargs["config"].tools
         assert len(registered_tools) == 1
         assert registered_tools[0].__name__ == "search_web_evidence"
         
         # Check second call (forced synthesis turn)
         second_call_kwargs = mock_client.models.generate_content.call_args_list[1][1]
-        assert second_call_kwargs["model"] == "gemini-3.1-flash-lite"
+        assert second_call_kwargs["model"] == "gemini-2.5-flash"
         assert second_call_kwargs["config"].response_mime_type == "application/json"
 
 

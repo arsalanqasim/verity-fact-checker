@@ -81,6 +81,7 @@ _TOOL_NAME = "brave_web_search"
 _session = None
 _ctx = None
 _session_url: str | None = None
+_session_lock: asyncio.Lock | None = None
 
 
 async def _ensure_session(mcp_url: str) -> Any:
@@ -88,29 +89,33 @@ async def _ensure_session(mcp_url: str) -> Any:
     Return a live ``ClientSession``, (re)connecting if necessary.
     Must be called from the background loop only.
     """
-    global _session, _ctx, _session_url
+    global _session, _ctx, _session_url, _session_lock
 
-    # Reuse existing session for the same URL
-    if _session is not None and _session_url == mcp_url:
+    if _session_lock is None:
+        _session_lock = asyncio.Lock()
+
+    async with _session_lock:
+        # Reuse existing session for the same URL
+        if _session is not None and _session_url == mcp_url:
+            return _session
+
+        # Different URL or session died — clean up first
+        await _teardown_session()
+
+        logger.info("Establishing MCP connection to %s …", mcp_url)
+        from mcp.client.sse import sse_client
+        from mcp import ClientSession
+
+        _ctx = sse_client(url=mcp_url, timeout=15)
+        read, write = await _ctx.__aenter__()
+        session = ClientSession(read, write)
+        await session.__aenter__()
+        await session.initialize()
+
+        _session = session
+        _session_url = mcp_url
+        logger.info("MCP session ready.")
         return _session
-
-    # Different URL or session died — clean up first
-    await _teardown_session()
-
-    logger.info("Establishing MCP connection to %s …", mcp_url)
-    from mcp.client.sse import sse_client
-    from mcp import ClientSession
-
-    _ctx = sse_client(url=mcp_url, timeout=15)
-    read, write = await _ctx.__aenter__()
-    session = ClientSession(read, write)
-    await session.__aenter__()
-    await session.initialize()
-
-    _session = session
-    _session_url = mcp_url
-    logger.info("MCP session ready.")
-    return _session
 
 
 async def _teardown_session() -> None:

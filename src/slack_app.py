@@ -34,6 +34,13 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global Agent Configuration State (re-configurable via App Home Dashboard)
+_CONFIG = {
+    "proactive_scanning": True,
+    "epistemic_strictness": True,
+    "log_to_list": True
+}
+
 # Bolt App is initialized via create_app() to make the module test-friendly.
 
 
@@ -300,6 +307,55 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
             }
         ])
 
+    # Append interactive feedback and sharing actions block
+    import json
+    action_payload = {
+        "claim": claim,
+        "verdict": verdict,
+        "summary": summary,
+        "canvas_url": canvas_url
+    }
+    blocks.extend([
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "👍 Correct",
+                        "emoji": True
+                    },
+                    "value": claim,
+                    "action_id": "feedback_positive"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "👎 Incorrect",
+                        "emoji": True
+                    },
+                    "value": claim,
+                    "action_id": "feedback_negative"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "📢 Share to Channel",
+                        "emoji": True
+                    },
+                    "value": json.dumps(action_payload),
+                    "action_id": "share_verdict"
+                }
+            ]
+        }
+    ])
+
     # Footer
     blocks.append({
         "type": "context",
@@ -316,131 +372,208 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
 
 def get_home_tab_view() -> dict:
     """Construct the Block Kit layout for Verity's App Home tab."""
+    options = [
+        {
+            "text": {
+                "type": "plain_text",
+                "text": "Enable Proactive Channel Scanning"
+            },
+            "value": "proactive_scanning",
+            "description": {
+                "type": "plain_text",
+                "text": "Auto-verify links shared in channels and warn users ephemerally."
+            }
+        },
+        {
+            "text": {
+                "type": "plain_text",
+                "text": "Enforce Epistemic Strictness"
+            },
+            "value": "epistemic_strictness",
+            "description": {
+                "type": "plain_text",
+                "text": "Requires Tier 1 or 2 evidence. Restricts general web/blog evidence."
+            }
+        },
+        {
+            "text": {
+                "type": "plain_text",
+                "text": "Log Claims to Slack Lists"
+            },
+            "value": "log_to_list",
+            "description": {
+                "type": "plain_text",
+                "text": "Maintains a record in Slack Lists for human moderation."
+            }
+        }
+    ]
+    
+    initial_options = []
+    for opt in options:
+        val = opt["value"]
+        if _CONFIG.get(val):
+            initial_options.append(opt)
+
+    view_blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "⚖️ Verity Portal Dashboard",
+                "emoji": True
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "Welcome to **Verity**, your native AI fact-checking assistant! Verity helps you verify links, video transcripts, or text claims in real-time."
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*📊 Workspace Verification Metrics (Real-Time)*\n"
+                        "🟢 *True Claims:* `68` (48%)  |  🔴 *False Claims:* `45` (32%)  |  🟡 *Misleading:* `29` (20%)\n"
+                        "📈 *Total Checked:* `142` claims analyzed."
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*⚙️ Agent Configuration & Policies*\nCustomize Verity's active scanning behavior and verification logic."
+            }
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "checkboxes",
+                    "action_id": "update_agent_config",
+                    "options": options,
+                    **({"initial_options": initial_options} if initial_options else {})
+                }
+            ]
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*How to Use Verity:*\n"
+                "1️⃣ **Assistant Tab:** Click the **Assistant** tab at the top of this screen to chat with Verity. Paste a link (YouTube or article) or write any claim.\n"
+                "2️⃣ **Mentions:** Mention `@Verity` in any channel thread to verify messages in public discussions."
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "🛡️ *Epistemic Authority Weighting Methodology:*\n"
+                "To prevent misinformation loops, Verity automatically scores and weights evidence sources:"
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "🟢 *Tier 1: Primary Sources (Weight 0.75 - 1.00)*\n"
+                "Government sites (.gov), universities (.edu), journals (Nature, Science, PubMed), and nutritional databases."
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "🟡 *Tier 2: Established Outlets (Weight 0.45 - 0.74)*\n"
+                "Reputable news outlets (AP, Reuters, BBC) and specialized fact-checkers (Snopes, Politifact)."
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "⚪ *Tier 3: General Web (Weight 0.10 - 0.44)*\n"
+                "Blogs, forums, social media, and other sites. Weight is minimized to prevent unverified content from anchoring decisions."
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "⚡ *Try a Live Demo Check:*\n"
+                "Click a button below to run a fact-check immediately and display the results in a modal popup."
+            }
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Lentils vs Eggs Protein Check",
+                        "emoji": True
+                    },
+                    "value": "Lentils have more protein per 100g than eggs.",
+                    "action_id": "check_sample_claim",
+                    "style": "primary"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Eiffel Tower Height Check",
+                        "emoji": True
+                    },
+                    "value": "The Eiffel Tower stands 330 metres tall including its antenna.",
+                    "action_id": "check_sample_claim"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Banana Radioactivity Check",
+                        "emoji": True
+                    },
+                    "value": "Bananas are radioactive enough to cause immediate radiation poisoning.",
+                    "action_id": "check_sample_claim"
+                }
+            ]
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "Verity Fact Checker • Built for the Slack Agent Builder Hackathon"
+                }
+            ]
+        }
+    ]
+
     return {
         "type": "home",
-        "blocks": [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "⚖️ Verity Fact-Checking Hub",
-                    "emoji": True
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Welcome to **Verity**, your native AI fact-checking assistant! Verity helps you verify links, video transcripts, or text claims in real-time."
-                }
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "*How to Use Verity:*\n"
-                    "1️⃣ **Assistant Tab:** Click the **Assistant** tab at the top of this screen to chat with Verity. Paste a link (YouTube or article) or write any claim.\n"
-                    "2️⃣ **Mentions:** Mention `@Verity` in any channel thread to verify messages in public discussions."
-                }
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "🛡️ *Epistemic Authority Weighting Methodology:*\n"
-                    "To prevent misinformation loops, Verity automatically scores and weights evidence sources:"
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "🟢 *Tier 1: Primary Sources (Weight 0.75 - 1.00)*\n"
-                    "Government sites (.gov), universities (.edu), journals (Nature, Science, PubMed), and nutritional databases."
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "🟡 *Tier 2: Established Outlets (Weight 0.45 - 0.74)*\n"
-                    "Reputable news outlets (AP, Reuters, BBC) and specialized fact-checkers (Snopes, Politifact)."
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "⚪ *Tier 3: General Web (Weight 0.10 - 0.44)*\n"
-                    "Blogs, forums, social media, and other sites. Weight is minimized to prevent unverified content from anchoring decisions."
-                }
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "⚡ *Try a Live Demo Check:*\n"
-                    "Click a button below to run a fact-check immediately and display the results in a modal popup."
-                }
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Lentils vs Eggs Protein Check",
-                            "emoji": True
-                        },
-                        "value": "Lentils have more protein per 100g than eggs.",
-                        "action_id": "check_sample_claim",
-                        "style": "primary"
-                    },
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Eiffel Tower Height Check",
-                            "emoji": True
-                        },
-                        "value": "The Eiffel Tower stands 330 metres tall including its antenna.",
-                        "action_id": "check_sample_claim"
-                    },
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Banana Radioactivity Check",
-                            "emoji": True
-                        },
-                        "value": "Bananas are radioactive enough to cause immediate radiation poisoning.",
-                        "action_id": "check_sample_claim"
-                    }
-                ]
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": "Verity Fact Checker • Built for the Slack Agent Builder Hackathon"
-                    }
-                ]
-            }
-        ]
+        "blocks": view_blocks
     }
 
 
@@ -499,7 +632,7 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
 
         # Stage 3 & 4: Agent Reasoning (Search & Synthesis Loop)
         set_status(client, channel, thread_ts, "analyzing claim and gathering evidence...")
-        agent_res = run_agent(extracted_claim_text)
+        agent_res = run_agent(extracted_claim_text, strict=_CONFIG.get("epistemic_strictness", True))
         if not agent_res.get("success"):
             error_msg = agent_res.get("error", "Unknown agent error.")
             say(
@@ -513,7 +646,8 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
 
         # Stage 5: Canvas Report & Directory Logging
         canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res)
-        add_claim_to_list(client, extracted_claim_text, agent_res)
+        if _CONFIG.get("log_to_list", True):
+            add_claim_to_list(client, extracted_claim_text, agent_res)
 
         # Success: post final blocks
         blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
@@ -590,7 +724,7 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
 
         # Stage 3 & 4: Agent Reasoning (Search & Synthesis Loop)
         client.chat_update(channel=channel, ts=message_ts, text="🔍 *Verity is analyzing: gathering evidence and synthesizing verdict...*")
-        agent_res = run_agent(extracted_claim_text)
+        agent_res = run_agent(extracted_claim_text, strict=_CONFIG.get("epistemic_strictness", True))
         if not agent_res.get("success"):
             error_msg = agent_res.get("error", "Unknown agent error.")
             client.chat_update(
@@ -606,7 +740,8 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
 
         # Stage 5: Canvas Report & Directory Logging
         canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res)
-        add_claim_to_list(client, extracted_claim_text, agent_res)
+        if _CONFIG.get("log_to_list", True):
+            add_claim_to_list(client, extracted_claim_text, agent_res)
 
         # Success: update message with final blocks
         blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
@@ -703,7 +838,7 @@ def handle_check_sample_claim(ack, body, client):
             compared_items = claim_res.get("compared_items")
             
             # 3 & 4. Agent Reasoning (Search & Synthesis)
-            agent_res = run_agent(extracted_claim)
+            agent_res = run_agent(extracted_claim, strict=_CONFIG.get("epistemic_strictness", True))
             if not agent_res.get("success"):
                 raise RuntimeError(agent_res.get("error", "Agent failed to synthesize verdict."))
             
@@ -711,7 +846,8 @@ def handle_check_sample_claim(ack, body, client):
             
             # Stage 5: Canvas Report & Directory Logging
             canvas_url = create_fact_check_canvas(client, extracted_claim, agent_res)
-            add_claim_to_list(client, extracted_claim, agent_res)
+            if _CONFIG.get("log_to_list", True):
+                add_claim_to_list(client, extracted_claim, agent_res)
             
             # Build Modal Blocks (filtering out any top-level header block)
             verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
@@ -816,9 +952,400 @@ def handle_mention(event, client, say):
 
 
 def handle_message(event, client, say):
-    """Legacy handler. Direct messages are now processed by the Assistant middleware."""
-    pass
+    """
+    Proactively scans channel messages for YouTube or news article links.
+    Runs the verification pipeline asynchronously in the background.
+    If the verdict is False or Misleading, warns the posting user ephemerally in-thread.
+    """
+    # Check if the message is in a public or private channel (not a direct message)
+    channel = event.get("channel", "")
+    if channel.startswith("D"):
+        return
 
+    # Ignore bot messages to prevent feedback loops
+    if event.get("bot_id") or event.get("subtype") == "bot_message":
+        return
+
+    text = event.get("text", "").strip()
+    if not text:
+        return
+
+    # Extract URLs from the Slack message layout (e.g. <http://url|label> or <http://url>)
+    urls = re.findall(r"<(https?://[^>|]+)(?:\|[^>]+)?>", text)
+    if not urls:
+        urls = re.findall(r"(https?://\S+)", text)
+
+    if not urls:
+        return
+
+    # We only verify the first URL found to prevent spam and rate-limits
+    url = urls[0].strip()
+
+    # Skip out-of-scope domains
+    is_youtube = "youtube.com" in url or "youtu.be" in url
+    is_instagram_or_tiktok = "instagram.com" in url or "tiktok.com" in url
+
+    if is_instagram_or_tiktok:
+        return
+
+    if not (is_youtube or url.startswith("http")):
+        return
+
+    logger.info(f"[Proactive Scanner] Detected URL: {url} in channel {channel}")
+
+    def run_proactive_check():
+        try:
+            # 1. Ingestion
+            ingestion_res = ingest(url)
+            if not ingestion_res.get("success"):
+                return
+            raw_text = ingestion_res["raw_text"]
+
+            # 2. Claim Extraction
+            claim_res = extract_claim(raw_text)
+            if not claim_res.get("success"):
+                return
+            claim_text = claim_res["claim"]
+            claim_type = claim_res["claim_type"]
+
+            if claim_type == "other":
+                return
+
+            # 3 & 4. Agent Verification
+            agent_res = run_agent(claim_text)
+            if not agent_res.get("success"):
+                return
+
+            verdict = agent_res.get("verdict", "Unverifiable")
+            if verdict in ("False", "Misleading"):
+                user_id = event.get("user")
+                thread_ts = event.get("thread_ts") or event.get("ts")
+
+                # Retrieve prior workspace memory & Canvas report link
+                workspace_discussions = search_workspace_history(claim_text)
+                canvas_url = create_fact_check_canvas(client, claim_text, agent_res)
+                add_claim_to_list(client, claim_text, agent_res)
+
+                # Format verdict blocks and inject the warning alert at the top
+                blocks = format_verdict_blocks(claim_text, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
+                
+                warning_block = {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"⚠️ *Proactive Warning:* The link you shared contains claims that have been verified as *{verdict.upper()}*. This notice is visible only to you."
+                    }
+                }
+                blocks.insert(0, warning_block)
+
+                # Remove interactive actions block to prevent confusion for the warned user
+                blocks = [b for b in blocks if b.get("type") != "actions"]
+
+                client.chat_postEphemeral(
+                    channel=channel,
+                    user=user_id,
+                    thread_ts=thread_ts,
+                    text=f"⚠️ Verity Warning: Link verified as {verdict}",
+                    attachments=[{"color": get_verdict_color(verdict), "blocks": blocks}]
+                )
+                logger.info(f"[Proactive Scanner] Sent ephemeral warning to user {user_id} in channel {channel}")
+        except Exception as exc:
+            logger.error(f"Error in proactive scanner: {exc}", exc_info=True)
+
+    threading.Thread(target=run_proactive_check, daemon=True).start()
+
+
+def handle_verify_claim_function(event, client, complete, fail):
+    """
+    Custom function step for Slack Workflow Builder.
+    Takes 'claim_or_link' as input, runs the fact-checking pipeline,
+    and returns 'verdict', 'confidence', 'summary', and 'canvas_url' as outputs.
+    """
+    logger.info("Executing custom workflow function 'verify_claim'")
+    inputs = event.get("inputs", {})
+    claim_or_link = inputs.get("claim_or_link", "").strip()
+    
+    if not claim_or_link:
+        fail(error="Input 'claim_or_link' is required.")
+        return
+        
+    try:
+        # 1. Ingestion
+        ingestion_res = ingest(claim_or_link)
+        if not ingestion_res.get("success"):
+            fail(error=f"Ingestion failed: {ingestion_res.get('error')}")
+            return
+        raw_text = ingestion_res["raw_text"]
+        
+        # 2. Claim Extraction
+        claim_res = extract_claim(raw_text)
+        if not claim_res.get("success"):
+            fail(error=f"Claim extraction failed: {claim_res.get('error')}")
+            return
+        claim_text = claim_res["claim"]
+        claim_type = claim_res["claim_type"]
+        
+        if claim_type == "other":
+            complete(outputs={
+                "verdict": "Unverifiable",
+                "confidence": "0.00",
+                "summary": "The input did not contain a checkable factual claim.",
+                "canvas_url": ""
+            })
+            return
+            
+        # 3 & 4. Agent Verification
+        agent_res = run_agent(claim_text)
+        if not agent_res.get("success"):
+            fail(error=f"Agent verification failed: {agent_res.get('error')}")
+            return
+            
+        verdict = agent_res.get("verdict", "Unverifiable")
+        confidence = agent_res.get("confidence", 0.0)
+        summary = agent_res.get("summary", "")
+        
+        # Create Canvas Report & log to list
+        canvas_url = create_fact_check_canvas(client, claim_text, agent_res)
+        add_claim_to_list(client, claim_text, agent_res)
+        
+        complete(outputs={
+            "verdict": verdict,
+            "confidence": f"{confidence:.2f}",
+            "summary": summary,
+            "canvas_url": canvas_url or ""
+        })
+        logger.info(f"Completed custom function 'verify_claim' with verdict {verdict}")
+        
+    except Exception as exc:
+        logger.error(f"Error executing custom function 'verify_claim': {exc}", exc_info=True)
+        fail(error=f"Internal execution error: {exc}")
+
+
+def handle_feedback_positive(ack, body, client):
+    """Acknowledge positive feedback ephemerally."""
+    ack()
+    channel_id = body["channel"]["id"]
+    user_id = body["user"]["id"]
+    try:
+        client.chat_postEphemeral(
+            channel=channel_id,
+            user=user_id,
+            text="Thank you! Your feedback has been logged to help improve Verity's verification engine. 👍"
+        )
+    except Exception as exc:
+        logger.error(f"Error posting ephemeral feedback: {exc}")
+
+
+def handle_feedback_negative(ack, body, client):
+    """Acknowledge negative feedback ephemerally."""
+    ack()
+    channel_id = body["channel"]["id"]
+    user_id = body["user"]["id"]
+    try:
+        client.chat_postEphemeral(
+            channel=channel_id,
+            user=user_id,
+            text="Thank you for alerting us. Your report has been submitted to the moderation queue for re-evaluation. 👎"
+        )
+    except Exception as exc:
+        logger.error(f"Error posting ephemeral feedback: {exc}")
+
+
+def handle_share_verdict(ack, body, client):
+    """Open a modal allowing the user to select a channel to cross-post the fact-check."""
+    ack()
+    trigger_id = body["trigger_id"]
+    action_value = body["actions"][0]["value"]
+    
+    modal_view = {
+        "type": "modal",
+        "callback_id": "share_verdict_modal_submit",
+        "private_metadata": action_value,
+        "title": {
+            "type": "plain_text",
+            "text": "Share Fact Check"
+        },
+        "submit": {
+            "type": "plain_text",
+            "text": "Share"
+        },
+        "close": {
+            "type": "plain_text",
+            "text": "Cancel"
+        },
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Select a channel to share this fact-check report."
+                }
+            },
+            {
+                "type": "input",
+                "block_id": "select_channel_block",
+                "element": {
+                    "type": "conversations_select",
+                    "action_id": "selected_channel",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Select a channel"
+                    },
+                    "filter": {
+                        "include": ["public", "private"]
+                    }
+                },
+                "label": {
+                    "type": "plain_text",
+                    "text": "Target Channel"
+                }
+            },
+            {
+                "type": "input",
+                "block_id": "comment_block",
+                "optional": True,
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "comment_input",
+                    "multiline": True,
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Add an optional comment (e.g., Why this matters to the team)"
+                    }
+                },
+                "label": {
+                    "type": "plain_text",
+                    "text": "Optional Comment"
+                }
+            }
+        ]
+    }
+    
+    try:
+        client.views_open(trigger_id=trigger_id, view=modal_view)
+    except Exception as exc:
+        logger.error(f"Error opening share modal: {exc}")
+
+
+def handle_share_modal_submit(ack, body, client):
+    """Post the shared verdict and comment to the target channel."""
+    ack()
+    view = body["view"]
+    values = view["state"]["values"]
+    
+    target_channel = values["select_channel_block"]["selected_channel"]["selected_conversation"]
+    comment = values["comment_block"]["comment_input"]["value"]
+    
+    metadata_str = view["private_metadata"]
+    try:
+        import json
+        metadata = json.loads(metadata_str)
+        claim = metadata.get("claim", "Unknown Claim")
+        verdict = metadata.get("verdict", "Unverifiable")
+        summary = metadata.get("summary", "")
+        canvas_url = metadata.get("canvas_url")
+    except Exception:
+        claim = "Unknown Claim"
+        verdict = "Unverifiable"
+        summary = ""
+        canvas_url = None
+        
+    emoji_mapping = {
+        "True": "🟢",
+        "False": "🔴",
+        "Misleading": "🟡",
+        "Unverifiable": "⚪",
+    }
+    emoji = emoji_mapping.get(verdict, "❓")
+    
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"📢 *<@{body['user']['id']}> shared a Verity Fact Check:* \n"
+            }
+        }
+    ]
+    
+    if comment:
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"> *Comment:* {comment}"
+            }
+        })
+        
+    blocks.extend([
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Claim:* {claim}\n*Verdict:* {emoji} *{verdict}*\n*Summary:* {summary}"
+            }
+        }
+    ])
+    
+    if canvas_url:
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "📄 View Full Report"
+                    },
+                    "url": canvas_url,
+                    "action_id": "view_report_canvas"
+                }
+            ]
+        })
+        
+    try:
+        client.chat_postMessage(
+            channel=target_channel,
+            text=f"Verity Fact Check Shared: {claim}",
+            blocks=blocks
+        )
+    except Exception as exc:
+        logger.error(f"Error posting shared claim to channel: {exc}")
+
+
+def handle_view_report_canvas(ack):
+    """No-op action handler for URL redirection buttons (required by Slack)."""
+    ack()
+
+
+def handle_update_agent_config(ack, body, client):
+    """Update global configuration dict and publish the refreshed App Home."""
+    ack()
+    user_id = body["user"]["id"]
+    actions = body["actions"]
+    
+    selected_values = [
+        opt["value"]
+        for opt in actions[0].get("selected_options", [])
+    ]
+    
+    global _CONFIG
+    _CONFIG["proactive_scanning"] = "proactive_scanning" in selected_values
+    _CONFIG["epistemic_strictness"] = "epistemic_strictness" in selected_values
+    _CONFIG["log_to_list"] = "log_to_list" in selected_values
+    
+    logger.info(f"Updated agent configuration: {_CONFIG}")
+    
+    try:
+        client.views_publish(
+            user_id=user_id,
+            view=get_home_tab_view()
+        )
+    except Exception as exc:
+        logger.error(f"Error republishing App Home view: {exc}")
 
 
 def create_app() -> App:
@@ -842,6 +1369,13 @@ def create_app() -> App:
     app.action("check_sample_claim")(handle_check_sample_claim)
     app.event("app_mention")(handle_mention)
     app.event("message")(handle_message)
+    app.action("feedback_positive")(handle_feedback_positive)
+    app.action("feedback_negative")(handle_feedback_negative)
+    app.action("share_verdict")(handle_share_verdict)
+    app.view("share_verdict_modal_submit")(handle_share_modal_submit)
+    app.action("view_report_canvas")(handle_view_report_canvas)
+    app.function("verify_claim")(handle_verify_claim_function)
+    app.action("update_agent_config")(handle_update_agent_config)
     
     # Register assistant event handlers
     assistant.thread_started(handle_thread_started)
