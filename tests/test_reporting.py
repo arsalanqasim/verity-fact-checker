@@ -13,8 +13,17 @@ from src.pipeline.reporting import create_fact_check_canvas, add_claim_to_list
 
 class TestCanvasReporting:
 
+    def setup_method(self):
+        from src.pipeline.reporting import _workspace_identity_cache
+        _workspace_identity_cache.clear()
+
     def test_create_fact_check_canvas_success(self):
         mock_client = MagicMock()
+        mock_client.auth_test.return_value = {
+            "ok": True,
+            "url": "https://verity-fact-checker.slack.com/",
+            "team_id": "T12345678",
+        }
         mock_client.canvases_create.return_value = {
             "ok": True,
             "canvas_id": "CAN12345"
@@ -29,7 +38,7 @@ class TestCanvasReporting:
         }
 
         url = create_fact_check_canvas(mock_client, claim, agent_res)
-        assert url == "https://slack.com/canvas/CAN12345"
+        assert url == "https://verity-fact-checker.slack.com/docs/T12345678/CAN12345"
         
         # Verify API parameters
         mock_client.canvases_create.assert_called_once()
@@ -81,6 +90,50 @@ class TestCanvasReporting:
 
         url = create_fact_check_canvas(mock_client, claim, agent_res)
         assert url is None
+
+    def test_create_fact_check_canvas_with_sharing(self):
+        mock_client = MagicMock()
+        mock_client.auth_test.return_value = {
+            "ok": True,
+            "url": "https://verity-fact-checker.slack.com/",
+            "team_id": "T12345678",
+        }
+        mock_client.canvases_create.return_value = {
+            "ok": True,
+            "canvas_id": "CAN12345"
+        }
+
+        claim = "Bananas are radioactive."
+        agent_res = {"verdict": "Misleading"}
+
+        url = create_fact_check_canvas(
+            mock_client,
+            claim,
+            agent_res,
+            channel_id="C987654",
+            user_id="U123456"
+        )
+        assert url == "https://verity-fact-checker.slack.com/docs/T12345678/CAN12345"
+
+        # Verify api_call was called to set permissions
+        assert mock_client.api_call.call_count == 2
+        calls = mock_client.api_call.call_args_list
+        
+        # Verify call to grant access to channel
+        assert calls[0][0][0] == "canvases.access.set"
+        assert calls[0][1]["json"] == {
+            "canvas_id": "CAN12345",
+            "access_level": "read",
+            "channel_ids": ["C987654"]
+        }
+
+        # Verify call to grant access to user
+        assert calls[1][0][0] == "canvases.access.set"
+        assert calls[1][1]["json"] == {
+            "canvas_id": "CAN12345",
+            "access_level": "read",
+            "user_ids": ["U123456"]
+        }
 
 
 

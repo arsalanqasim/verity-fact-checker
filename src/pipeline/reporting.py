@@ -17,11 +17,38 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+_workspace_identity_cache: dict[str, str] = {}
+
+def _build_canvas_url(client, canvas_id: str) -> str | None:
+    try:
+        if "url" not in _workspace_identity_cache or "team_id" not in _workspace_identity_cache:
+            auth_res = client.auth_test()
+            _workspace_identity_cache["url"] = auth_res["url"].rstrip("/")
+            _workspace_identity_cache["team_id"] = auth_res["team_id"]
+
+        base_url = _workspace_identity_cache["url"]
+        team_id = _workspace_identity_cache["team_id"]
+
+        return f"{base_url}/docs/{team_id}/{canvas_id}"
+
+    except Exception as exc:
+        logger.error(
+            f"Could not resolve workspace URL for canvas link: {exc}",
+            exc_info=True,
+        )
+        return None
+
 # ---------------------------------------------------------------------------
 # Slack Canvas Reporting
 # ---------------------------------------------------------------------------
 
-def create_fact_check_canvas(client, claim: str, agent_res: dict) -> str | None:
+def create_fact_check_canvas(
+    client,
+    claim: str,
+    agent_res: dict,
+    channel_id: str | None = None,
+    user_id: str | None = None,
+) -> str | None:
     """
     Create a detailed Slack Canvas document with a formatted fact-checking report.
     
@@ -29,6 +56,8 @@ def create_fact_check_canvas(client, claim: str, agent_res: dict) -> str | None:
         client: The WebClient instance from Bolt.
         claim: The text claim checked.
         agent_res: The dict result from run_agent.
+        channel_id: Optional Slack channel ID to grant read access.
+        user_id: Optional Slack user ID to grant read access.
         
     Returns:
         The URL of the created canvas, or None if creation failed/unsupported.
@@ -54,7 +83,7 @@ def create_fact_check_canvas(client, claim: str, agent_res: dict) -> str | None:
                 sources_md += f"| {idx} | {title_clean} | {tier_badge} | [Open Link]({url}) |\n"
         else:
             sources_md += "_No external sources cited for this claim._\n"
-
+ 
         md_content = (
             f"# ⚖️ Verity Fact-Check Report\n\n"
             f"**Claim Evaluated:**\n"
@@ -87,7 +116,38 @@ def create_fact_check_canvas(client, claim: str, agent_res: dict) -> str | None:
         
         if res.get("ok"):
             canvas_id = res["canvas_id"]
-            canvas_url = f"https://slack.com/canvas/{canvas_id}"
+            
+            # Set read permissions for the channel if provided
+            if channel_id:
+                try:
+                    client.api_call(
+                        "canvases.access.set",
+                        json={
+                            "canvas_id": canvas_id,
+                            "access_level": "read",
+                            "channel_ids": [channel_id]
+                        }
+                    )
+                    logger.info(f"Granted channel {channel_id} read access to canvas {canvas_id}")
+                except Exception as exc:
+                    logger.warning(f"Could not grant canvas access to channel {channel_id}: {exc}")
+
+            # Set read permissions for the user if provided
+            if user_id:
+                try:
+                    client.api_call(
+                        "canvases.access.set",
+                        json={
+                            "canvas_id": canvas_id,
+                            "access_level": "read",
+                            "user_ids": [user_id]
+                        }
+                    )
+                    logger.info(f"Granted user {user_id} read access to canvas {canvas_id}")
+                except Exception as exc:
+                    logger.warning(f"Could not grant canvas access to user {user_id}: {exc}")
+
+            canvas_url = _build_canvas_url(client, canvas_id)
             logger.info(f"Created Canvas {canvas_id}")
             return canvas_url
             

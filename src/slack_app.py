@@ -590,7 +590,7 @@ def set_status(client, channel: str, thread_ts: str, status: str) -> None:
         logger.debug(f"Could not set assistant thread status: {exc}")
 
 
-def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, client, say) -> None:
+def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, client, say, user_id: str | None = None) -> None:
     """Run the 4-stage pipeline natively within an assistant thread using status and say."""
     try:
         # Stage 1: Ingestion
@@ -645,7 +645,7 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
         workspace_discussions = search_workspace_history(extracted_claim_text)
 
         # Stage 5: Canvas Report & Directory Logging
-        canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res)
+        canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res, channel_id=channel, user_id=user_id)
         if _CONFIG.get("log_to_list", True):
             add_claim_to_list(client, extracted_claim_text, agent_res)
 
@@ -668,7 +668,7 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
         )
 
 
-def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> None:
+def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client, user_id: str | None = None) -> None:
     """Run the 4-stage pipeline and post the updated result in a thread."""
     # Post initial "analyzing" message
     initial_res = client.chat_postMessage(
@@ -739,7 +739,7 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
         workspace_discussions = search_workspace_history(extracted_claim_text)
 
         # Stage 5: Canvas Report & Directory Logging
-        canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res)
+        canvas_url = create_fact_check_canvas(client, extracted_claim_text, agent_res, channel_id=channel, user_id=user_id)
         if _CONFIG.get("log_to_list", True):
             add_claim_to_list(client, extracted_claim_text, agent_res)
 
@@ -845,7 +845,9 @@ def handle_check_sample_claim(ack, body, client):
             workspace_discussions = search_workspace_history(extracted_claim)
             
             # Stage 5: Canvas Report & Directory Logging
-            canvas_url = create_fact_check_canvas(client, extracted_claim, agent_res)
+            user_id = body.get("user", {}).get("id")
+            channel_id = body.get("channel", {}).get("id")
+            canvas_url = create_fact_check_canvas(client, extracted_claim, agent_res, channel_id=channel_id, user_id=user_id)
             if _CONFIG.get("log_to_list", True):
                 add_claim_to_list(client, extracted_claim, agent_res)
             
@@ -931,9 +933,10 @@ def handle_assistant_message(message, say, client):
     text = message.get("text", "").strip()
     thread_ts = message.get("thread_ts") or message.get("ts")
     channel = message.get("channel")
+    user_id = message.get("user")
     
     logger.info(f"Assistant received message: {text}")
-    run_pipeline_and_reply_assistant(text, channel, thread_ts, client, say)
+    run_pipeline_and_reply_assistant(text, channel, thread_ts, client, say, user_id=user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -947,8 +950,9 @@ def handle_mention(event, client, say):
     
     # Strip the bot mention from the text (e.g., <@U123456> claim -> claim)
     cleaned_text = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
+    user_id = event.get("user")
     
-    run_pipeline_and_reply(cleaned_text, event["channel"], thread_ts, client)
+    run_pipeline_and_reply(cleaned_text, event["channel"], thread_ts, client, user_id=user_id)
 
 
 def handle_message(event, client, say):
@@ -1027,7 +1031,7 @@ def handle_message(event, client, say):
 
                 # Retrieve prior workspace memory & Canvas report link
                 workspace_discussions = search_workspace_history(claim_text)
-                canvas_url = create_fact_check_canvas(client, claim_text, agent_res)
+                canvas_url = create_fact_check_canvas(client, claim_text, agent_res, channel_id=channel, user_id=user_id)
                 
                 # Check log_to_list config toggle
                 if _CONFIG.get("log_to_list", True):
@@ -1112,7 +1116,9 @@ def handle_verify_claim_function(event, client, complete, fail):
         summary = agent_res.get("summary", "")
         
         # Create Canvas Report & log to list
-        canvas_url = create_fact_check_canvas(client, claim_text, agent_res)
+        channel_id = event.get("channel_id") or event.get("inputs", {}).get("channel_id")
+        user_id = event.get("user_id") or event.get("inputs", {}).get("user_id")
+        canvas_url = create_fact_check_canvas(client, claim_text, agent_res, channel_id=channel_id, user_id=user_id)
         add_claim_to_list(client, claim_text, agent_res)
         
         complete(outputs={

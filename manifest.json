@@ -24,7 +24,8 @@
                 "channels:history",
                 "groups:history",
                 "canvases:write",
-                "lists:write"
+                "lists:write",
+                "auth:read"
             ]
         }
     },
