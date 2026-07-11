@@ -97,7 +97,7 @@ Instructions:
    - Tier 1 (.gov, .edu, journals, PubMed, USDA) is highly trusted.
    - Tier 2 (established news wires, reputable news outlets, specialized fact-checkers) is moderately trusted.
    - Tier 3 (blogs, general web, social media, forums) is low trust.
-4. If the initial search results are insufficient, too narrow, or contradictory, refine your search strategy and call the tool again (up to 3 times max). For example, if a comparative claim compares multiple items, run queries for each item.
+4. If the initial search results are insufficient, too narrow, or contradictory, refine your search strategy and call the tool again. Note: You do not need exhaustive research for well-established claims. Once you have 2–3 corroborating or contradicting sources, or once further searches are returning duplicate/unhelpful results, stop calling tools and produce your final verdict.
 5. Once you have gathered sufficient evidence, synthesize the final verdict:
    - True: The claim is fully supported by Tier-1 or Tier-2 evidence with no significant caveats.
    - False: The claim is directly contradicted by Tier-1 or Tier-2 evidence.
@@ -154,31 +154,130 @@ def run_agent(claim: str) -> dict:
     )
 
     try:
+        import json
         from google import genai
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
 
-        response = client.models.generate_content(
-            model=_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[search_web_evidence],
-                response_mime_type="application/json",
-                response_schema=_VerdictSchema,
-                temperature=0,  # deterministic output
-            ),
+        # Initialize conversation contents history starting with user prompt
+        contents = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)]
+            )
+        ]
+
+        # Config for tool-calling turns (does not enforce JSON schema to allow function calling)
+        tool_config = types.GenerateContentConfig(
+            tools=[search_web_evidence],
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            temperature=0,
         )
 
+        max_iterations = 4
+        seen_calls = set()
+        final_response_text = None
+
+        for iteration in range(1, max_iterations + 1):
+            logger.info(f"[Agentic Loop] Turn {iteration}/{max_iterations}...")
+            response = client.models.generate_content(
+                model=_MODEL,
+                contents=contents,
+                config=tool_config
+            )
+
+            # Record model content in history
+            if response.candidates and response.candidates[0].content:
+                contents.append(response.candidates[0].content)
+            else:
+                logger.warning("[Agentic Loop] Empty candidate content received from model.")
+                break
+
+            # Handle function calls if any
+            if response.function_calls:
+                tool_parts = []
+                for function_call in response.function_calls:
+                    func_name = function_call.name
+                    func_args = function_call.args
+                    
+                    # Deduplication key (name + stringified args)
+                    call_key = (func_name, json.dumps(func_args, sort_keys=True))
+                    logger.info(f"[Agentic Loop] Model requested tool call: {func_name}({func_args})")
+                    
+                    if call_key in seen_calls:
+                        logger.warning(f"[Agentic Loop] Duplicate tool call detected: {func_name}({func_args}). Short-circuiting.")
+                        # Inject synthetic response directing model toward synthesis
+                        result_str = (
+                            "This exact query was already run and returned results. "
+                            "Do not repeat queries. Synthesize your final verdict based on the existing evidence gathered so far."
+                        )
+                    else:
+                        seen_calls.add(call_key)
+                        if func_name == "search_web_evidence":
+                            query = func_args.get("query", "")
+                            result_str = search_web_evidence(query=query)
+                        else:
+                            result_str = f"Error: unknown tool '{func_name}'"
+
+                    logger.info(f"[Agentic Loop] Tool response (truncated): {result_str[:250]}...")
+                    tool_parts.append(
+                        types.Part.from_function_response(
+                            name=func_name,
+                            response={"result": result_str}
+                        )
+                    )
+                
+                # Record tool responses in history
+                contents.append(
+                    types.Content(
+                        role="tool",
+                        parts=tool_parts
+                    )
+                )
+            else:
+                # No function calls, model returned final text response
+                final_response_text = response.text
+                logger.info("[Agentic Loop] Model did not request any tools. Finalizing response.")
+                break
+
+        # Synthesis/Fallback Turn: Force final output to match response_schema
+        # This is run if we reached iteration limit, or when model decided to finish
+        logger.info("[Agentic Loop] Running structured synthesis turn (tools disabled)...")
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(
+                        text="Give your best verdict now based on available evidence. "
+                             "Do not call any more tools. You MUST respond with a JSON conforming to the required verdict schema."
+                    )
+                ]
+            )
+        )
+
+        # Fresh GenerateContentConfig WITHOUT tools key to prevent API rejection of JSON response schema
+        synthesis_config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=_VerdictSchema,
+            temperature=0,
+        )
+
+        response = client.models.generate_content(
+            model=_MODEL,
+            contents=contents,
+            config=synthesis_config
+        )
         raw_json = response.text
+
         if not raw_json:
             return {
                 "verdict": "Unverifiable",
                 "confidence": 0.0,
-                "summary": "Empty response from agent model.",
+                "summary": "Empty response from agent model during synthesis.",
                 "sources": [],
                 "success": False,
-                "error": "Gemini returned an empty response."
+                "error": "Gemini returned an empty response during synthesis."
             }
 
         parsed = _VerdictSchema.model_validate_json(raw_json)

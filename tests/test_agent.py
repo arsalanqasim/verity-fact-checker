@@ -44,6 +44,7 @@ class TestAgentMocked:
         mock_client_class.return_value = mock_client
         
         mock_response = MagicMock()
+        mock_response.function_calls = None
         mock_response.text = (
             '{"verdict": "True", "confidence": 0.95, '
             '"summary": "Verified via USDA data.", '
@@ -65,14 +66,19 @@ class TestAgentMocked:
         assert res["sources"][0]["tier"] == 1
 
         # Verify correct configuration was passed to the Gemini SDK
-        mock_client.models.generate_content.assert_called_once()
-        call_kwargs = mock_client.models.generate_content.call_args[1]
-        assert call_kwargs["model"] == "gemini-3.1-flash-lite"
+        assert mock_client.models.generate_content.call_count == 2
         
-        # Check that the tool was registered
-        registered_tools = call_kwargs["config"].tools
+        # Check first call (tool-seeking turn)
+        first_call_kwargs = mock_client.models.generate_content.call_args_list[0][1]
+        assert first_call_kwargs["model"] == "gemini-3.1-flash-lite"
+        registered_tools = first_call_kwargs["config"].tools
         assert len(registered_tools) == 1
         assert registered_tools[0].__name__ == "search_web_evidence"
+        
+        # Check second call (forced synthesis turn)
+        second_call_kwargs = mock_client.models.generate_content.call_args_list[1][1]
+        assert second_call_kwargs["model"] == "gemini-3.1-flash-lite"
+        assert second_call_kwargs["config"].response_mime_type == "application/json"
 
 
 @pytest.mark.slow
