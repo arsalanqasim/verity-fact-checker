@@ -144,8 +144,18 @@ def format_guidance_blocks(original_text: str) -> list[dict]:
     ]
 
 
-def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions: list[dict] = None, canvas_url: str = None) -> list[dict]:
-    """Format the final verdict into a premium Block Kit layout."""
+def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions: list[dict] = None, canvas_url: str = None, search_succeeded: bool = True) -> list[dict]:
+    """Format the final verdict into a premium Block Kit layout.
+    
+    Parameters:
+        claim: The factual claim that was checked.
+        verdict_data: The dict result from run_agent.
+        workspace_discussions: Optional list of prior Slack discussions.
+        canvas_url: Optional URL to the Slack Canvas report.
+        search_succeeded: True if at least one search_web_evidence call returned
+            real results. When False, the Sourced Evidence section is structurally
+            omitted to prevent fabricated citations from appearing in the UI.
+    """
     verdict = verdict_data.get("verdict", "Unverifiable")
     confidence = verdict_data.get("confidence", 0.0)
     summary = verdict_data.get("summary", "No summary available.")
@@ -202,14 +212,46 @@ def format_verdict_blocks(claim: str, verdict_data: dict, workspace_discussions:
         {
             "type": "divider"
         },
-        {
+    ]
+
+    # Only render the Sourced Evidence section when real search results back it up.
+    # When search_succeeded is False, the section is structurally absent from the
+    # payload — no tier badges, no links, no fabricated citations.
+    if search_succeeded:
+        sources_text = ""
+        if sources:
+            formatted_sources = []
+            for s in sources:
+                title = s.get("title") or "Source Link"
+                url = s.get("url", "#")
+                tier = s.get("tier", 3)
+                tier_badge = "🟢 *Tier 1 (Primary)*" if tier == 1 else ("🟡 *Tier 2 (Reputable)*" if tier == 2 else "⚪ *Tier 3 (General Web)*")
+                formatted_sources.append(f"• <{url}|*{title}*> — {tier_badge}")
+            sources_text = "\n".join(formatted_sources)
+        else:
+            sources_text = "No sources cited."
+
+        blocks.append({
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": f"*Sourced Evidence:*\n{sources_text}"
             }
-        }
-    ]
+        })
+    else:
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": (
+                    "⚠️ *Search Unavailable*\n"
+                    "Live web search could not be completed during this check. "
+                    "The verdict above is based on general knowledge only and has "
+                    "*not been independently verified* against live sources. "
+                    "No source citations are shown because none were retrieved."
+                )
+            }
+        })
 
     # Surface workspace discussions (Slack RTS memory) if present
     if workspace_discussions:
@@ -474,7 +516,7 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
         add_claim_to_list(client, extracted_claim_text, agent_res)
 
         # Success: post final blocks
-        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url)
+        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
         color = get_verdict_color(agent_res.get("verdict"))
         say(
             text=f"⚖️ Verity Verdict: {agent_res.get('verdict')}",
@@ -567,7 +609,7 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client) -> N
         add_claim_to_list(client, extracted_claim_text, agent_res)
 
         # Success: update message with final blocks
-        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url)
+        blocks = format_verdict_blocks(extracted_claim_text, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
         color = get_verdict_color(agent_res.get("verdict"))
         client.chat_update(
             channel=channel,
@@ -672,7 +714,7 @@ def handle_check_sample_claim(ack, body, client):
             add_claim_to_list(client, extracted_claim, agent_res)
             
             # Build Modal Blocks (filtering out any top-level header block)
-            verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions, canvas_url)
+            verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
             filtered_blocks = [b for b in verdict_blocks if b.get("type") != "header"]
 
             

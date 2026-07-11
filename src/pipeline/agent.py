@@ -27,7 +27,13 @@ logger = logging.getLogger(__name__)
 
 class _SourceSchema(BaseModel):
     title: str = Field(description="The title of the source page or document.")
-    url: str = Field(description="The URL of the source.")
+    url: str = Field(
+        description=(
+            "The URL of the source. "
+            "MUST be copied verbatim from the 'URL:' field of one of the Evidence items "
+            "returned by search_web_evidence. Do not construct, paraphrase, or invent URLs."
+        )
+    )
     tier: int = Field(description="The authority tier of the source: 1, 2, or 3.")
 
 
@@ -60,7 +66,6 @@ def search_web_evidence(query: str) -> str:
         A formatted string of evidence snippets annotated with source authority scores and tiers.
     """
     logger.info(f"[Agent Tool Execution] Running Brave Search for: '{query}'")
-    # Execute verification search using verify_claim
     res = verify_claim(query, claim_type="single_fact")
     if not res.get("success"):
         return f"Search error: {res.get('error', 'unknown error')}"
@@ -68,6 +73,18 @@ def search_web_evidence(query: str) -> str:
     evidence = res.get("evidence", [])
     if not evidence:
         return f"No search results found for query: '{query}'."
+
+    # Full, untruncated evidence dump at DEBUG level for provenance auditing.
+    logger.debug(
+        "[Agent Tool Evidence] Full evidence list for query '%s' (%d items):\n%s",
+        query,
+        len(evidence),
+        "\n".join(
+            f"  [{i}] Tier {e.get('authority_tier')} Score {e.get('authority_score'):.2f} "
+            f"URL={e.get('source_url')} Title={e.get('title')}"
+            for i, e in enumerate(evidence, 1)
+        ),
+    )
         
     formatted = []
     for idx, item in enumerate(evidence, start=1):
@@ -178,6 +195,10 @@ def run_agent(claim: str) -> dict:
         max_iterations = 4
         seen_calls = set()
         final_response_text = None
+        searches_succeeded = False  # True once any search_web_evidence call returns real results
+        # Accumulate every URL returned by any search tool call.
+        # Used to (a) build the synthesis whitelist and (b) strip hallucinated citations.
+        retrieved_urls: set[str] = set()
 
         for iteration in range(1, max_iterations + 1):
             logger.info(f"[Agentic Loop] Turn {iteration}/{max_iterations}...")
@@ -217,10 +238,23 @@ def run_agent(claim: str) -> dict:
                         if func_name == "search_web_evidence":
                             query = func_args.get("query", "")
                             result_str = search_web_evidence(query=query)
+                            # Track whether any real evidence came back.
+                            # Error strings start with "Search error:" or "No search results found".
+                            if not (result_str.startswith("Search error:") or
+                                    result_str.startswith("No search results found")):
+                                searches_succeeded = True
+                                # Parse URLs out of the formatted evidence string so we can
+                                # build the whitelist for the synthesis prompt.
+                                import re as _re
+                                for _url in _re.findall(r"^  URL: (.+)$", result_str, _re.MULTILINE):
+                                    retrieved_urls.add(_url.strip())
                         else:
                             result_str = f"Error: unknown tool '{func_name}'"
 
-                    logger.info(f"[Agentic Loop] Tool response (truncated): {result_str[:250]}...")
+                    logger.info(
+                        "[Agentic Loop] Tool response for '%s' (%d chars)",
+                        func_name, len(result_str)
+                    )
                     tool_parts.append(
                         types.Part.from_function_response(
                             name=func_name,
@@ -241,17 +275,49 @@ def run_agent(claim: str) -> dict:
                 logger.info("[Agentic Loop] Model did not request any tools. Finalizing response.")
                 break
 
-        # Synthesis/Fallback Turn: Force final output to match response_schema
-        # This is run if we reached iteration limit, or when model decided to finish
+        # Synthesis/Fallback Turn: Force final output to match response_schema.
+        # The synthesis prompt depends on whether any real search results were obtained.
+        # If searches_succeeded is False, instruct the model to issue an Unverifiable
+        # verdict rather than fabricating sourced evidence from general knowledge.
         logger.info("[Agentic Loop] Running structured synthesis turn (tools disabled)...")
+
+        if searches_succeeded:
+            # Build an explicit numbered whitelist of every URL retrieved.
+            # The model is instructed to select only from this list — it cannot
+            # construct or invent URLs.
+            if retrieved_urls:
+                whitelist_lines = "\n".join(
+                    f"  {i}. {url}" for i, url in enumerate(sorted(retrieved_urls), 1)
+                )
+                url_constraint = (
+                    f"\n\nPERMITTED SOURCE URLs — you may ONLY cite URLs from this exact list. "
+                    f"Do not alter, combine, or invent any URL. "
+                    f"Do not add sources from your general knowledge.\n{whitelist_lines}"
+                )
+            else:
+                url_constraint = ""
+
+            synthesis_user_prompt = (
+                "Give your best verdict now based on the search evidence gathered above. "
+                "Do not call any more tools. "
+                "You MUST respond with a JSON conforming to the required verdict schema."
+            ) + url_constraint
+        else:
+            synthesis_user_prompt = (
+                "All web search attempts failed — no live evidence was retrieved. "
+                "You MUST set verdict to 'Unverifiable', confidence to 0.2 or lower, "
+                "and sources to an empty list. "
+                "In the summary field, state plainly that live web search was unavailable "
+                "and that no independent verification could be performed. "
+                "Do NOT fabricate source URLs or cite general knowledge as sourced evidence. "
+                "You MUST respond with a JSON conforming to the required verdict schema."
+            )
+
         contents.append(
             types.Content(
                 role="user",
                 parts=[
-                    types.Part.from_text(
-                        text="Give your best verdict now based on available evidence. "
-                             "Do not call any more tools. You MUST respond with a JSON conforming to the required verdict schema."
-                    )
+                    types.Part.from_text(text=synthesis_user_prompt)
                 ]
             )
         )
@@ -282,14 +348,34 @@ def run_agent(claim: str) -> dict:
 
         parsed = _VerdictSchema.model_validate_json(raw_json)
 
+        # ── Post-processing provenance filter ────────────────────────────────
+        # Remove any source whose URL was not in the retrieved evidence.
+        # This is defense-in-depth: the whitelist in the synthesis prompt should
+        # prevent hallucinated URLs, but we enforce it structurally here as well.
+        if retrieved_urls:
+            clean_sources = [
+                s for s in parsed.sources
+                if s.url.strip() in retrieved_urls
+            ]
+            hallucinated_count = len(parsed.sources) - len(clean_sources)
+            if hallucinated_count:
+                logger.warning(
+                    "[Agent] Stripped %d hallucinated citation(s) not in retrieved evidence: %s",
+                    hallucinated_count,
+                    [s.url for s in parsed.sources if s.url.strip() not in retrieved_urls],
+                )
+        else:
+            clean_sources = parsed.sources
+
         return {
             "verdict": parsed.verdict,
             "confidence": parsed.confidence,
             "summary": parsed.summary,
             "sources": [
                 {"title": s.title, "url": s.url, "tier": s.tier}
-                for s in parsed.sources
+                for s in clean_sources
             ],
+            "search_succeeded": searches_succeeded,
             "success": True,
             "error": None
         }

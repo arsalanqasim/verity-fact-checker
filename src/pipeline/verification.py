@@ -55,8 +55,8 @@ Environment:
 
 from __future__ import annotations
 
-import asyncio
 import json
+import logging
 import os
 import re
 from typing import Optional
@@ -66,7 +66,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.pipeline.mcp_client import get_mcp_client
+from src.pipeline.mcp_client import call_tool as mcp_call_tool
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -187,34 +189,27 @@ def score_authority(url: str) -> tuple[float, int]:
 
 
 # ---------------------------------------------------------------------------
-# MCP client helpers  (async)
+# MCP client helpers  (synchronous — delegates to background event loop)
 # ---------------------------------------------------------------------------
 
-_TOOL_NAME = "brave_web_search"
-_RESULTS_PER_QUERY = 5   # Brave MCP default is 10; 5 is enough per query
+_RESULTS_PER_QUERY = 5   # 5 results per query is enough for fact-checking
 
 
-async def _call_brave_mcp(
-    mcp_url: str,
-    query: str,
-    count: int = _RESULTS_PER_QUERY,
-) -> list[dict]:
+def _call_brave_mcp(mcp_url: str, query: str, count: int = _RESULTS_PER_QUERY) -> list[dict]:
     """
-    Query the Brave Search MCP server using the persistent client connection,
-    call the ``brave_web_search`` tool, and parse the results into a list of dicts.
-    """
-    client = get_mcp_client(mcp_url)
-    session = await client.get_session()
+    Query the Brave Search MCP server synchronously.
 
-    result = await session.call_tool(
-        _TOOL_NAME,
-        {"query": query, "count": count},
+    Delegates to ``mcp_client.call_tool()``, which submits the async work to
+    the permanent background event loop via ``run_coroutine_threadsafe``.  The
+    calling thread blocks until the result arrives.  No ``asyncio.run()`` is
+    used here, so there is no loop-lifecycle conflict with the MCP session.
+    """
+    content = mcp_call_tool(
+        mcp_url,
+        tool_name="brave_web_search",
+        args={"query": query, "count": count},
     )
-
-    if result.isError:
-        raise RuntimeError(f"MCP tool returned an error for query '{query}'")
-
-    return _parse_tool_result(result.content)
+    return _parse_tool_result(content)
 
 
 
@@ -288,16 +283,12 @@ def _parse_tool_result(content_items) -> list[dict]:
 # Evidence gathering — the per-item query strategy for comparative claims
 # ---------------------------------------------------------------------------
 
-async def _gather_evidence_for_query(
-    mcp_url: str,
-    query: str,
-    label: str,
-) -> list[dict]:
+def _gather_evidence_for_query(mcp_url: str, query: str, label: str) -> list[dict]:
     """
-    Run one search query and annotate each result with authority score, tier,
-    and the query that produced it.
+    Run one search query synchronously and annotate each result with authority
+    score, tier, and the query that produced it.
     """
-    raw = await _call_brave_mcp(mcp_url, query)
+    raw = _call_brave_mcp(mcp_url, query)
     evidence = []
     for item in raw:
         score, tier = score_authority(item.get("url", ""))
@@ -368,32 +359,37 @@ def _broaden_query(claim: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Async orchestrator
+# Synchronous orchestrator (replaces the former async _verify_async)
 # ---------------------------------------------------------------------------
 
-async def _verify_async(
+def _verify_sync(
     mcp_url: str,
     claim: str,
     claim_type: str,
     compared_items: Optional[list[str]],
 ) -> dict:
-    """Async core — gathers evidence for all queries concurrently and returns sorted results."""
+    """
+    Gather evidence for all queries **sequentially** using the sync
+    ``_call_brave_mcp`` helper, which delegates to the permanent background
+    event loop.  No ``asyncio.run()`` is used, so there is no event-loop
+    lifecycle conflict.
+
+    Queries run sequentially rather than concurrently.  For fact-checking
+    workloads (2-4 queries, ~200-500 ms each) this is fast enough and avoids
+    the complexity of managing concurrency across loop boundaries.
+    """
     queries = _build_queries(claim, claim_type, compared_items)
 
     all_evidence: list[dict] = []
     errors: list[str] = []
 
-    # Run queries concurrently using asyncio.gather
-    async def run_one(query_str, label):
+    for query_str, label in queries:
         try:
-            return await _gather_evidence_for_query(mcp_url, query_str, label)
+            items = _gather_evidence_for_query(mcp_url, query_str, label)
+            all_evidence.extend(items)
         except Exception as exc:
             errors.append(f"Query '{label}' failed: {exc}")
-            return []
-
-    results = await asyncio.gather(*[run_one(q, l) for q, l in queries])
-    for res in results:
-        all_evidence.extend(res)
+            logger.warning("Evidence query '%s' failed: %s", label, exc)
 
     if not all_evidence and errors:
         return {
@@ -401,7 +397,6 @@ async def _verify_async(
             "success": False,
             "error": "; ".join(errors),
         }
-
 
     # Deduplicate by URL, keeping the highest-scored copy
     seen: dict[str, dict] = {}
@@ -542,9 +537,7 @@ def verify_claim(
         }
 
     try:
-        res = asyncio.run(
-            _verify_async(mcp_url, claim.strip(), claim_type, compared_items)
-        )
+        res = _verify_sync(mcp_url, claim.strip(), claim_type, compared_items)
         res["workspace_discussions"] = search_workspace_history(claim.strip())
         return res
     except Exception as exc:  # noqa: BLE001
