@@ -116,7 +116,7 @@ Output ONLY the JSON object matching the schema — no explanation, no markdown.
 # Public entry point
 # ---------------------------------------------------------------------------
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3.1-flash-lite"
 
 
 def extract_claim(raw_text: str) -> dict:

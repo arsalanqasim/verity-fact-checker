@@ -74,33 +74,34 @@ Then edit `.env` and fill in every value:
 
 ## 5. Set up the Slack app
 
-## Required Slack OAuth Bot Scopes
+The easiest way to set up the Slack app is by using the provided [manifest.json](file:///C:/Users/arsal/Desktop/slack-agent/manifest.json):
 
-Here are the Slack OAuth Bot scopes required by this project's API calls and event integrations:
+1. Go to the [Slack App Dashboard](https://api.slack.com/apps) and click **Create New App**.
+2. Select **From an app manifest**.
+3. Choose your workspace, then copy and paste the contents of `manifest.json` into the JSON tab.
+4. Click **Create** and install the app to your workspace.
 
-- app_mentions:read
-- chat:write
-- assistant:write
-- channels:history
-- groups:history
-- canvases:write
-- lists:write
+### Manual Scopes Configuration (If needed)
 
-### Slack App Setup & Scopes Configuration
+If you prefer to configure the app manually, ensure Socket Mode is enabled and the following bot token scopes are added in **OAuth & Permissions**:
+- `app_mentions:read`
+- `chat:write`
+- `chat:write.public` (to post in public channels)
+- `assistant:write`
+- `channels:history`
+- `groups:history`
+- `canvases:write`
+- `lists:write`
 
-To configure the scopes for your Slack App:
+### Workflow Builder Custom Step Constraints
 
-1. Navigate to the **Slack App Dashboard** (https://api.slack.com/apps) and select your application.
-2. Go to **OAuth & Permissions** in the left sidebar.
-3. Scroll down to the **Scopes** section.
-4. Under **Bot Token Scopes**, click **Add an OAuth Scope** and add each of the scopes listed in the "Required Slack OAuth Bot Scopes" section.
-5. If utilizing the optional Workspace Memory search (Real-Time Search API), scroll to **User Token Scopes** and add the required user scopes listed below.
-
-> [!IMPORTANT]
-> **Reinstalling Your App is Mandatory:**
-> Whenever you add new OAuth scopes or modify existing permissions, you **must reinstall the app** to your workspace. 
-> Existing bot tokens do **not** automatically gain new permissions or scopes that are added after the token is issued. If you do not reinstall the app, API calls requiring the new scopes will fail immediately with a `missing_scope` error.
-
+> [!NOTE]
+> Custom Workflow Steps (using Bolt app functions) require the Slack app to be **org-ready** and installed at the **enterprise org level**. 
+> Due to this native Slack platform constraint:
+> 1. You must use a Slack Enterprise Grid sandbox workspace to test the custom step in Workflow Builder.
+> 2. The step will only be available in workflows built within that specific enterprise org.
+> 
+> The code in [slack_app.py](file:///C:/Users/arsal/Desktop/slack-agent/src/slack_app.py) registers the `verify_claim` custom step handler natively, but the step itself will only appear in Workflow Builder once the manifest is imported into an Enterprise Grid workspace.
 
 ### Required user token scopes (`OAuth & Permissions` - Optional for Workspace Memory)
 

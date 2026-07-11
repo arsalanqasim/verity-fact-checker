@@ -99,7 +99,7 @@ Evaluate the evidence using these strict guidelines:
    - Include only the sources from the input evidence that were actually relevant and used in the evaluation.
 """
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3.1-flash-lite"
 
 
 def synthesise_verdict(claim: str, evidence: list[dict]) -> dict:

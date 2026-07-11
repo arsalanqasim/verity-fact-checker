@@ -962,6 +962,10 @@ def handle_message(event, client, say):
     if channel.startswith("D"):
         return
 
+    # Check proactive scanning config toggle
+    if not _CONFIG.get("proactive_scanning", True):
+        return
+
     # Ignore bot messages to prevent feedback loops
     if event.get("bot_id") or event.get("subtype") == "bot_message":
         return
@@ -1012,7 +1016,7 @@ def handle_message(event, client, say):
                 return
 
             # 3 & 4. Agent Verification
-            agent_res = run_agent(claim_text)
+            agent_res = run_agent(claim_text, strict=_CONFIG.get("epistemic_strictness", True))
             if not agent_res.get("success"):
                 return
 
@@ -1024,7 +1028,10 @@ def handle_message(event, client, say):
                 # Retrieve prior workspace memory & Canvas report link
                 workspace_discussions = search_workspace_history(claim_text)
                 canvas_url = create_fact_check_canvas(client, claim_text, agent_res)
-                add_claim_to_list(client, claim_text, agent_res)
+                
+                # Check log_to_list config toggle
+                if _CONFIG.get("log_to_list", True):
+                    add_claim_to_list(client, claim_text, agent_res)
 
                 # Format verdict blocks and inject the warning alert at the top
                 blocks = format_verdict_blocks(claim_text, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))

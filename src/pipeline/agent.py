@@ -131,7 +131,7 @@ Your final output must conform to the required JSON schema.
 # Main Runner
 # ---------------------------------------------------------------------------
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3.1-flash-lite"
 
 def run_agent(claim: str, strict: bool = True) -> dict:
     """
