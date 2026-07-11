@@ -202,3 +202,24 @@ class TestClaimExtraction:
         assert result["success"] is True, f"API call failed: {result['error']}"
         assert isinstance(result["claim"], str)
         assert len(result["claim"].strip()) > 0
+
+    def test_fact_check_article_extracts_myth(self):
+        """
+        When reading a fact-check or debunking article, the extractor should pull
+        the original myth/claim under review rather than the fact-checker's negation/conclusion.
+        """
+        text = (
+            "Repeatedly debunked idea of 'shedding' COVID-19 vaccines is still false. "
+            "Our only agenda is to publish the truth. "
+            "People vaccinated against COVID-19 cannot shed spike proteins to harm anyone. "
+            "Pfizer never confirmed that COVID-19 vaccine shedding occurs."
+        )
+        result = extract_claim(text)
+
+        assert result["success"] is True, f"API call failed: {result['error']}"
+        claim_lower = result["claim"].lower()
+        # Verify that it extracts the positive myth (that shedding can/does happen)
+        # rather than the negation ("cannot shed" or "shedding is false")
+        assert "can shed" in claim_lower or "occurs" in claim_lower or "is possible" in claim_lower or "cannot" not in claim_lower
+        assert "shed" in claim_lower
+

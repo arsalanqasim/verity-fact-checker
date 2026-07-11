@@ -108,6 +108,10 @@ because verifying it requires looking up multiple values and comparing them
    compared_items (e.g. ["lentils", "chicken", "eggs"]).
 4. If the text contains no clear factual claim, set claim_type to "other" and \
    describe what the text is about in the claim field.
+5. If the text is a fact-check, debunking, or verification article/post, \
+extract the original underlying claim/myth being evaluated (usually the false or controversial \
+assertion being checked) rather than the fact-checker's conclusion, refutation, or negation. \
+For example, if the article debunks the claim that "vaccines cause autism", extract "vaccines cause autism".
 
 Output ONLY the JSON object matching the schema — no explanation, no markdown.
 """
