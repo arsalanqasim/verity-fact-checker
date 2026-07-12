@@ -100,7 +100,7 @@ All three technologies are used correctly and honestly — each does exactly one
 - **Anti-hallucination architecture** — Two-layer protection (whitelist in prompt + structural post-processing filter) means Verity's citations are provably grounded in real search results
 - **Source authority as a named design decision** — The score_authority() function is explicit, inspectable, and testable — not buried middleware
 - **Comparative claim handling** — Comparative claims are recognized and handled as multi-entity comparisons rather than single facts, so the agent reasons about rankings correctly
-- **Full test suite** — All 6 pipeline modules/components have pytest tests with fixed inputs/outputs (66 total tests passing)
+- **Full test suite** — All 6 pipeline modules/components have pytest tests with fixed inputs/outputs (66 total tests passing). Line coverage on the fast/mocked suite is 67% (`pytest -m "not slow"`); network-dependent live-API paths (YouTube/article fetching, live search) are covered separately under tests marked `slow` rather than skipped silently.
 - **Graceful degradation** — Every failure path produces a clean, honest UX — never a confident verdict from ungrounded knowledge
 
 ---
