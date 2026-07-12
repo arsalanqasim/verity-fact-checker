@@ -5,3 +5,4 @@ youtube-transcript-api==1.2.4
 trafilatura==2.1.0
 pytest==9.1.1
 python-dotenv==1.2.2
+pydantic>=2.0
