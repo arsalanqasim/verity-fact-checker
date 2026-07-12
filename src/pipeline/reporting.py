@@ -167,6 +167,30 @@ def create_fact_check_canvas(
 # Slack Lists Logging
 # ---------------------------------------------------------------------------
 
+def _rich_text_field(column_id: str, value: str) -> dict:
+    """Build a Slack Lists rich_text field dict for use in initial_fields.
+
+    Slack's slackLists.items.create API requires text-type columns to be
+    submitted as Block Kit rich_text blocks, not a plain "text" key.
+    """
+    return {
+        "column_id": column_id,
+        "rich_text": [
+            {
+                "type": "rich_text",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {"type": "text", "text": value}
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+
 def add_claim_to_list(client, claim: str, agent_res: dict) -> bool:
     """
     Log the factual claim and its verdict into a workspace Slack List for moderation.
@@ -201,13 +225,13 @@ def add_claim_to_list(client, claim: str, agent_res: dict) -> bool:
         # Build initial_fields dictionary mapping user's list schemas
         fields = []
         if col_claim:
-            fields.append({"column_id": col_claim, "text": claim})
+            fields.append(_rich_text_field(col_claim, claim))
         if col_verdict:
-            fields.append({"column_id": col_verdict, "text": verdict})
+            fields.append(_rich_text_field(col_verdict, verdict))
         if col_confidence:
-            fields.append({"column_id": col_confidence, "text": f"{confidence:.2f}"})
+            fields.append(_rich_text_field(col_confidence, f"{confidence:.2f}"))
         if col_summary:
-            fields.append({"column_id": col_summary, "text": summary})
+            fields.append(_rich_text_field(col_summary, summary))
             
         logger.info(f"Logging claim to Slack List {list_id}...")
         

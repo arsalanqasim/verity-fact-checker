@@ -183,10 +183,24 @@ class TestListsLogging:
         
         fields = call_kwargs["initial_fields"]
         assert len(fields) == 4
-        assert {"column_id": "C_CLAIM", "text": "Bananas are radioactive."} in fields
-        assert {"column_id": "C_VERDICT", "text": "Misleading"} in fields
-        assert {"column_id": "C_CONFIDENCE", "text": "0.60"} in fields
-        assert {"column_id": "C_SUMMARY", "text": "Mild radiation, but harmless."} in fields
+
+        # Helper to extract the rendered text from a rich_text field dict
+        def _extract_text(field):
+            rt = field["rich_text"]
+            elements = rt[0]["elements"]
+            return "".join(e["text"] for e in elements[0]["elements"])
+
+        claim_field = next(f for f in fields if f["column_id"] == "C_CLAIM")
+        assert _extract_text(claim_field) == "Bananas are radioactive."
+        verdict_field = next(f for f in fields if f["column_id"] == "C_VERDICT")
+        assert _extract_text(verdict_field) == "Misleading"
+        confidence_field = next(f for f in fields if f["column_id"] == "C_CONFIDENCE")
+        assert _extract_text(confidence_field) == "0.60"
+        summary_field = next(f for f in fields if f["column_id"] == "C_SUMMARY")
+        assert _extract_text(summary_field) == "Mild radiation, but harmless."
+
+        # Also verify no field uses the old "text" key (the rejected shape)
+        assert all("text" not in f for f in fields), "Fields must use rich_text, not plain text"
 
     def test_add_claim_to_list_failure(self, monkeypatch):
         monkeypatch.setenv("SLACK_LIST_ID", "L999")
