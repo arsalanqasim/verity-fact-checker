@@ -13,6 +13,42 @@
             "always_online": true
         }
     },
+    "functions": {
+        "verify_claim": {
+            "title": "Verify a Claim",
+            "description": "Fact-checks a claim or link and returns a sourced verdict.",
+            "input_parameters": {
+                "claim_or_link": {
+                    "type": "string",
+                    "title": "Claim or link",
+                    "description": "The claim text, YouTube link, or article link to fact-check.",
+                    "is_required": true
+                }
+            },
+            "output_parameters": {
+                "verdict": {
+                    "type": "string",
+                    "title": "Verdict",
+                    "is_required": true
+                },
+                "confidence": {
+                    "type": "string",
+                    "title": "Confidence",
+                    "is_required": true
+                },
+                "summary": {
+                    "type": "string",
+                    "title": "Summary",
+                    "is_required": true
+                },
+                "canvas_url": {
+                    "type": "string",
+                    "title": "Canvas report URL",
+                    "is_required": false
+                }
+            }
+        }
+    },
     "oauth_config": {
         "scopes": {
             "bot": [
