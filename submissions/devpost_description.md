@@ -76,6 +76,30 @@ All three technologies are used correctly and honestly — each does exactly one
 
 ---
 
+## Why This Is an Agent, Not a Bot
+
+Most "AI Slack tools" are request/response: you ask, it answers. Verity's core
+loop is different — it runs unprompted. `handle_message` background-scans
+every channel message it can see, and if a claim resolves to False or
+Misleading, it makes an autonomous decision to intervene: not a public
+callout (which would embarrass the poster and likely get the feature muted by
+admins), but a quiet, ephemeral, single-recipient warning. That's a judgment
+call about *how* to act, not just *whether* to act — the kind of initiative
+"agent" is supposed to mean.
+
+Two more deliberate agent-design choices worth naming:
+- **Manual tool loop, not automatic function calling.** Gemini's search calls
+  go through an explicit, inspectable loop (`agent.py`) rather than SDK
+  auto-calling, so every tool call and result is visible and boundable — a
+  hard 4-turn cap plus a deduplication guard prevent runaway agentic loops,
+  a real and current concern in agent systems generally.
+- **Structural, not prompt-only, safety.** The citation whitelist and the
+  forced-Unverifiable-on-search-failure path are enforced in code after the
+  model responds, not just requested of the model. We don't trust the LLM to
+  follow instructions — we verify its output.
+
+---
+
 ## Challenges We Ran Into
 
 **Instagram/TikTok ingestion** — We tested it on Day 1. Video download works, but Instagram exposes no transcript or caption API of any kind — confirmed against yt-dlp's own issue tracker. Getting spoken-word transcripts would require Whisper STT: ~10–30s latency, ~2GB model dependency, and a live-demo risk we weren't willing to take. Deliberately scoped out.
