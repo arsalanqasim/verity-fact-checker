@@ -34,5 +34,5 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Private submission reference — Arsalan's own use, never commit
-submissions/devpost_form_data.md
+# Private submission reference
+submissions/
