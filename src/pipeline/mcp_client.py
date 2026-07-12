@@ -210,6 +210,9 @@ def shutdown() -> None:
     Gracefully close the MCP session and stop the background loop.
     Optional — the daemon thread is reaped automatically at process exit.
     """
-    _submit(_teardown_session())
-    if _BG_LOOP is not None:
+    if _BG_LOOP is not None and _BG_LOOP.is_running():
+        try:
+            _submit(_teardown_session())
+        except Exception:
+            pass
         _BG_LOOP.call_soon_threadsafe(_BG_LOOP.stop)
