@@ -931,6 +931,10 @@ def handle_assistant_message(message, say, client):
     user_id = message.get("user")
     
     logger.info(f"Assistant received message: {text}")
+    try:
+        client.reactions_add(channel=channel, timestamp=message["ts"], name="eyes")
+    except Exception:
+        pass
     run_pipeline_and_reply_assistant(text, channel, thread_ts, client, say, user_id=user_id)
 
 
@@ -947,6 +951,10 @@ def handle_mention(event, client, say):
     cleaned_text = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
     user_id = event.get("user")
     
+    try:
+        client.reactions_add(channel=event["channel"], timestamp=event["ts"], name="eyes")
+    except Exception:
+        pass
     run_pipeline_and_reply(cleaned_text, event["channel"], thread_ts, client, user_id=user_id)
 
 
@@ -997,6 +1005,10 @@ def handle_message(event, client, say):
         return
 
     logger.info(f"[Proactive Scanner] Detected URL: {url} in channel {channel}")
+    try:
+        client.reactions_add(channel=channel, timestamp=event["ts"], name="eyes")
+    except Exception:
+        pass
 
     def run_proactive_check():
         try:
