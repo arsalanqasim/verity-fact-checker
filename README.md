@@ -1,3 +1,5 @@
+![Tests](https://github.com/arsalanqasim/verity-fact-checker/actions/workflows/tests.yml/badge.svg)
+
 # Verity
 
 A Slack agent that takes a pasted link or plain-text claim and returns a
