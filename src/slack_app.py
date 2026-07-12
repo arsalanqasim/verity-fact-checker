@@ -23,7 +23,7 @@ from slack_bolt.middleware.assistant import Assistant
 # Import pipeline functions
 from src.pipeline.ingestion import ingest
 from src.pipeline.claims import extract_claim
-from src.pipeline.verification import verify_claim, search_workspace_history
+from src.pipeline.verification import search_workspace_history
 from src.pipeline.agent import run_agent
 from src.pipeline.reporting import create_fact_check_canvas, add_claim_to_list
 
