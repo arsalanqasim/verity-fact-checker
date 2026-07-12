@@ -162,13 +162,13 @@ verity-fact-checker/
 │   └── pipeline/
 │       ├── ingestion.py      # Stage 1: detect input type, extract text
 │       ├── claims.py         # Stage 2: identify checkable claim(s) via Gemini
-│       ├── verification.py   # Stage 3: query Brave Search MCP, rank sources
-│       └── verdict.py        # Stage 4: synthesise verdict JSON via Gemini
+│       ├── verification.py   # Brave Search MCP query + source authority scoring
+│       └── agent.py          # Stage 3 & 4: agentic loop + verdict synthesis (Gemini)
 ├── tests/
 │   ├── test_ingestion.py
 │   ├── test_claims.py
 │   ├── test_verification.py
-│   └── test_verdict.py
+│   └── test_agent.py
 ├── .env.example              # Variable names — copy to .env, never commit .env
 ├── requirements.txt
 └── README.md
@@ -192,19 +192,33 @@ User pastes link or claim in Slack
     (single-fact / comparative / causal)
            │
            ▼
-    [3] Verification  (Brave Search MCP)
-    Query external sources; rank by authority tier
+    [3] Agentic Verification  (Brave Search MCP, via agent.py)
+    Gemini runs a manual tool loop calling search_web_evidence;
+    query external sources; rank by authority tier
     (.gov/.edu/peer-reviewed > established news > generic web)
            │
            ▼
-    [4] Verdict Synthesis  (Gemini)
-    Produce structured JSON:
+    [4] Verdict Synthesis  (Gemini, in agent.py)
+    Forced structured synthesis turn produces typed JSON:
     { verdict, confidence, summary, sources[] }
+    (citation whitelist + post-processing filter enforced here)
            │
            ▼
     [5] Slack Delivery  (Bolt + Block Kit)
     Post formatted threaded reply
 ```
+
+---
+
+## How web verification works (for judges / operators)
+
+Web evidence is gathered via a **Brave Search MCP server connected over SSE**
+(`BRAVE_SEARCH_MCP_URL`). The agent loop calls this server live for every
+fact-check. **If the MCP server is unreachable, Verity does not guess:** it
+returns an honest `Unverifiable` verdict (confidence capped at 0.30) with no
+fabricated source citations. This is the intended safety design, not a failure
+mode — a confident answer is never produced from ungrounded parametric
+knowledge.
 
 ---
 

@@ -120,5 +120,5 @@
   <text x="80" y="812" font-size="12" font-weight="700" fill="#1a1f29">Safety Net</text>
   <text x="80" y="830" font-size="10.5" fill="#4b5563">• Manual loop (AFC disabled) prevents runaway tool-call loops — hard cap of 4 turns before forced synthesis.</text>
   <text x="80" y="846" font-size="10.5" fill="#4b5563">• Citation whitelist + post-processing filter: only URLs actually returned by Brave Search can appear as sources — hallucinated citations are stripped.</text>
-  <text x="80" y="862" font-size="10.5" fill="#4b5563">• If live search fails entirely, verdict is forced to "Unverifiable" (confidence ≤ 0.2) with no fabricated sources — never a confident answer from ungrounded knowledge.</text>
+  <text x="80" y="862" font-size="10.5" fill="#4b5563">• If live search fails entirely, verdict is forced to "Unverifiable" (confidence ≤ 0.30) with no fabricated sources — never a confident answer from ungrounded knowledge.</text>
 </svg>

@@ -437,9 +437,8 @@ def get_home_tab_view() -> dict:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "*📊 Workspace Verification Metrics (Real-Time)*\n"
-                        "🟢 *True Claims:* `68` (48%)  |  🔴 *False Claims:* `45` (32%)  |  🟡 *Misleading:* `29` (20%)\n"
-                        "📈 *Total Checked:* `142` claims analyzed."
+                "text": "*📊 How Verity Works*\n"
+                        "Paste a claim or link (YouTube/article) and Verity searches live sources via the Brave Search MCP, weights the evidence by authority tier, and replies with a sourced True / False / Misleading / Unverifiable verdict."
             }
         },
         {

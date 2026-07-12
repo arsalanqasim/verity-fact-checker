@@ -181,7 +181,7 @@ def add_claim_to_list(client, claim: str, agent_res: dict) -> bool:
     """
     list_id = os.environ.get("SLACK_LIST_ID")
     if not list_id or not list_id.strip():
-        logger.info("SLACK_LIST_ID not configured — skipping Slack Lists logging.")
+        logger.warning("SLACK_LIST_ID not configured — skipping Slack Lists logging.")
         return False
         
     col_claim = os.environ.get("SLACK_LIST_COL_CLAIM")

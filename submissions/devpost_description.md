@@ -40,7 +40,7 @@ Verity is a 5-stage agentic pipeline built in Python with the Slack Bolt SDK:
 Detects input type (YouTube URL → youtube-transcript-api; article URL → trafilatura; plain text → passthrough). All failure paths return a safe error dict — no crashes, no ingestion fragility on the demo path.
 
 ### Stage 2 — Claim Extraction
-Gemini 2.5 Flash identifies the specific *checkable* claim and classifies its type: single_fact, comparative (e.g., "X has more protein than Y and Z"), or causal. Comparative claims get separate search queries per subject — critical for ranking claims to be verified correctly.
+Gemini 3.1 Flash Lite identifies the specific *checkable* claim and classifies its type: single_fact, comparative (e.g., "X has more protein than Y and Z"), or causal. Comparative claims are classified distinctly so they aren't collapsed into a single-fact check, and the agent is prompted to investigate each compared entity separately.
 
 ### Stage 3 — Agentic Verification Loop (MCP Integration)
 Gemini autonomously formulates search queries and calls the **Brave Search MCP server** via SSE transport. Key safety features:
@@ -51,7 +51,7 @@ Gemini autonomously formulates search queries and calls the **Brave Search MCP s
 ### Stage 4 — Verdict Synthesis
 A separate structured synthesis turn (tools disabled, response_schema enforced) produces a typed JSON verdict: { verdict, confidence, summary, sources[] }.
 
-**Citation hallucination guard:** A whitelist of every URL returned by Brave Search is passed to the synthesis prompt. A post-processing filter then structurally removes any citation not in the whitelist. Verity cannot fabricate sourced evidence — if search fails, verdict is forced to Unverifiable with confidence ≤ 0.2.
+**Citation hallucination guard:** A whitelist of every URL returned by Brave Search is passed to the synthesis prompt. A post-processing filter then structurally removes any citation not in the whitelist. Verity cannot fabricate sourced evidence — if search fails, verdict is forced to Unverifiable with confidence ≤ 0.30.
 
 ### Stage 5 — Slack Delivery
 Block Kit threaded reply with color-coded verdict attachment, tiered source badges, workspace memory section, and a Slack Canvas report link. Slack Lists logs every verdict for team-level moderation.
@@ -84,13 +84,15 @@ All three technologies are used correctly and honestly — each does exactly one
 
 **Hallucinated citations** — Early versions of the synthesis prompt let Gemini invent plausible-looking URLs. We fixed this structurally: every URL retrieved by Brave Search goes into a numbered whitelist in the synthesis prompt, and a post-processing filter enforces it structurally.
 
+**Web-evidence dependency** — Verity gathers all web evidence via a Brave Search MCP server over SSE. If that server is unreachable, it returns an honest "Unverifiable" verdict (confidence capped at 0.30) with no fabricated sources rather than guessing from parametric knowledge. This is the intended safety design, not a failure mode: a cold sandbox without the MCP server running will produce Unverifiable results by design.
+
 ---
 
 ## Accomplishments We're Proud Of
 
 - **Anti-hallucination architecture** — Two-layer protection (whitelist in prompt + structural post-processing filter) means Verity's citations are provably grounded in real search results
 - **Source authority as a named design decision** — The score_authority() function is explicit, inspectable, and testable — not buried middleware
-- **Comparative claim handling** — Per-item search queries for comparative claims prevent evidence averaging and produce correctly reasoned ranking verdicts
+- **Comparative claim handling** — Comparative claims are recognized and handled as multi-entity comparisons rather than single facts, so the agent reasons about rankings correctly
 - **Full test suite** — All 4 pipeline modules have pytest tests with fixed inputs/outputs
 - **Graceful degradation** — Every failure path produces a clean, honest UX — never a confident verdict from ungrounded knowledge
 

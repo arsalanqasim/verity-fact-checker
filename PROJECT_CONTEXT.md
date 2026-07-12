@@ -35,7 +35,7 @@ Feasibility spike (2026-07-10, `scripts/ig_spike.py`) confirmed via yt-dlp again
 
 ## Tech stack
 - Python 3.11+, Slack Bolt SDK for Python
-- **Gemini API (Google AI Studio, free tier) for claim extraction and verdict synthesis** — model: `gemini-2.5-flash` (stable, not a preview model — preview models can change behavior or be deprecated mid-hackathon with little notice). Use structured JSON output via `response_mime_type="application/json"` + `response_schema`, no free-text parsing.
+- **Gemini API (Google AI Studio, free tier) for claim extraction and verdict synthesis** — model: `gemini-3.1-flash-lite`. Use structured JSON output via `response_mime_type="application/json"` + `response_schema`, no free-text parsing.
 - MCP client integration for Brave Search MCP server (verification)
 - `youtube-transcript-api` for YouTube ingestion
 - `trafilatura` for article text extraction
