@@ -15,26 +15,20 @@ I thought: there should be an app or agent where I can just share a link, and it
 
 ## What It Does
 
-Verity is an autonomous, socially considerate Slack agent designed to curb the spread of misinformation in real-time. Instead of requiring users to manually check every claim, Verity actively works in the background to verify shared content and protect team communication.
+Verity works two ways. **Proactively**, it watches for links posted in channels it's in, quietly runs them through the full verification pipeline in the background, and — only if the claim comes back False or Misleading — sends a private, ephemeral warning to the person who posted it. Nobody has to ask. Nobody gets publicly called out. **On demand**, paste any link or claim directly and Verity replies in-thread with a sourced, source-quality-weighted verdict — **True / False / Misleading / Unverifiable** — in under 30 seconds.
 
-### 1. Headline Feature: Proactive & Socially-Considerate Scanner (Autonomous)
-Verity silently monitors workspace channels for shared links (YouTube videos or news articles). When a user posts a link:
-- Verity automatically runs the verification pipeline in the background.
-- If the source content is verified as **False** or **Misleading**, Verity sends an **ephemeral warning message** in the thread that is **visible only to the user who posted it**.
-- This protects the channel from misinformation while **avoiding public embarrassment** — giving the poster a private opportunity to correct, delete, or address their message.
+Three input types supported for the on-demand flow:
+- **Plain text claim** — paste any factual statement directly
+- **YouTube video link** — Verity fetches the video transcript and checks the spoken claim
+- **Article / news link** — Verity extracts the article body and identifies the checkable claim
 
-### 2. Manual Fact-Checking & Deep Dives (Secondary Trigger)
-Users can also interact with Verity directly via the Slack Assistant tab or by mentioning `@Verity`:
-- **Plain text claims**, **YouTube video links**, or **articles** can be pasted to request an on-demand verification.
-- Verity replies with a complete, structured verdict in under 30 seconds.
-
-### What you get back in every report:
-- **Verdict with confidence score** (0–100%)
-- **Concise summary of key evidence**
-- **Sourced citations** with explicit authority tier badges (Tier 1 / Tier 2 / Tier 3)
-- **Slack Canvas full report** that persists indefinitely for the team
-- **Slack Lists claim directory entry** for workspace moderation
-- **Workspace memory** — automatically surfacing any prior Slack discussions of the same claim
+What you get back:
+- Verdict with confidence score (0–100%)
+- Summary of the key evidence
+- Sourced citations with authority tier badges (Tier 1 / Tier 2 / Tier 3)
+- A Slack Canvas full report (persists indefinitely)
+- An entry in the workspace's Slack Lists claim directory
+- Workspace memory — if this claim was previously discussed in Slack, those threads surface automatically
 
 ---
 
