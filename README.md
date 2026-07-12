@@ -92,6 +92,7 @@ If you prefer to configure the app manually, ensure Socket Mode is enabled and t
 - `groups:history`
 - `canvases:write`
 - `lists:write`
+- `channels:join` (to automatically join a public channel when sharing a fact-check report if the bot is not already in it)
 
 ### Workflow Builder Custom Step Constraints
 
