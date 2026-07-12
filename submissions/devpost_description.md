@@ -5,9 +5,9 @@
 
 ## Inspiration
 
-Every day, misinformation spreads through social media, YouTube videos, and news headlines — and most people never check it. Not because they don't care, but because verifying a single claim takes 10+ minutes across multiple tabs: search the web, find a credible source, read the study, check the outlet's reputation, repeat. The friction is the problem.
+Every day, as I scroll through social media like Instagram, I see questionable claims and misinformation spreading rapidly. But there is no fast way to verify them in the moment. I tried sharing these reels and videos with ChatGPT and other LLMs, but they all said the same thing: they couldn't extract the exact captions or spoken details of the video. 
 
-The trigger case for Verity was simple: someone sees an Instagram Reel claiming that a specific food has more protein than chicken *and* eggs. There's no fast way to check that in the moment. By the time most people would verify it, they've already shared it.
+I thought: there should be an app or agent where I can just share a link, and it automatically goes out, searches through credible sources, and returns a detailed summary of the claim. When I saw the Slack Agent Builder Challenge on Devpost, it clicked — why not build this exact solution inside Slack? This way, I could implement the idea I had and bring instant verification directly into the workspace where teams share and discuss content.
 
 **Verity is the fact-check button the internet doesn't have** — one paste, one sourced answer, right inside Slack where your team already shares and discusses content.
 
