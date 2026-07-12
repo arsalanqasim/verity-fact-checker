@@ -618,7 +618,6 @@ def run_pipeline_and_reply_assistant(text: str, channel: str, thread_ts: str, cl
 
         extracted_claim_text = claim_res["claim"]
         claim_type = claim_res["claim_type"]
-        compared_items = claim_res.get("compared_items")
 
         # If it is not a checkable claim, skip verification & verdict and show guidance
         if claim_type == "other":
@@ -708,7 +707,6 @@ def run_pipeline_and_reply(text: str, channel: str, thread_ts: str, client, user
 
         extracted_claim_text = claim_res["claim"]
         claim_type = claim_res["claim_type"]
-        compared_items = claim_res.get("compared_items")
 
         # If it is not a checkable claim, skip verification & verdict and show guidance
         if claim_type == "other":
@@ -833,8 +831,6 @@ def handle_check_sample_claim(ack, body, client):
             # 2. Claim Extraction
             claim_res = extract_claim(raw_text)
             extracted_claim = claim_res.get("claim") or claim
-            claim_type = claim_res.get("claim_type") or "single_fact"
-            compared_items = claim_res.get("compared_items")
             
             # 3 & 4. Agent Reasoning (Search & Synthesis)
             agent_res = run_agent(extracted_claim, strict=_CONFIG.get("epistemic_strictness", True))
@@ -1376,7 +1372,6 @@ def handle_update_agent_config(ack, body, client):
         for opt in actions[0].get("selected_options", [])
     ]
     
-    global _CONFIG
     _CONFIG["proactive_scanning"] = "proactive_scanning" in selected_values
     _CONFIG["epistemic_strictness"] = "epistemic_strictness" in selected_values
     _CONFIG["log_to_list"] = "log_to_list" in selected_values

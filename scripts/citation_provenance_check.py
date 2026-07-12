@@ -11,7 +11,6 @@ Run:
 
 import logging
 import sys
-import os
 
 # Enable DEBUG on the agent module so we see every tool response untruncated.
 # We override search_web_evidence to intercept and record the full text.
@@ -47,7 +46,7 @@ def _intercepted_search(query: str) -> str:
 
     evidence = res.get("evidence", [])
     if not evidence:
-        print(f"  [NO RESULTS] No evidence returned.")
+        print("  [NO RESULTS] No evidence returned.")
         return f"No search results found for query: '{query}'."
 
     print(f"  [EVIDENCE — {len(evidence)} items returned]")
@@ -123,19 +122,19 @@ print(f"  HALLUCINATED (verdict only, NOT in evidence): {len(hallucinated)}")
 print(f"  Unreferenced (retrieved but not cited) : {len(unreferenced)}")
 
 if hallucinated:
-    print(f"\n  *** HALLUCINATED CITATIONS ***")
+    print("\n  *** HALLUCINATED CITATIONS ***")
     for url in sorted(hallucinated):
         print(f"    !! {url}")
 else:
-    print(f"\n  ✓ All verdict URLs appeared in the retrieved evidence.")
+    print("\n  ✓ All verdict URLs appeared in the retrieved evidence.")
 
 if confirmed:
-    print(f"\n  Confirmed citations:")
+    print("\n  Confirmed citations:")
     for url in sorted(confirmed):
         print(f"    ✓ {url}")
 
 if unreferenced:
-    print(f"\n  Unreferenced (retrieved but not used in verdict):")
+    print("\n  Unreferenced (retrieved but not used in verdict):")
     for url in sorted(unreferenced):
         print(f"    - {url}")
 

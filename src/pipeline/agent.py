@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Literal, Optional
+from typing import Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
@@ -195,7 +195,6 @@ def run_agent(claim: str, strict: bool = True) -> dict:
 
         max_iterations = 4
         seen_calls = set()
-        final_response_text = None
         searches_succeeded = False  # True once any search_web_evidence call returns real results
         # Accumulate every URL returned by any search tool call.
         # Used to (a) build the synthesis whitelist and (b) strip hallucinated citations.
@@ -272,7 +271,6 @@ def run_agent(claim: str, strict: bool = True) -> dict:
                 )
             else:
                 # No function calls, model returned final text response
-                final_response_text = response.text
                 logger.info("[Agentic Loop] Model did not request any tools. Finalizing response.")
                 break
 

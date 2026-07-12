@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pytest
 from src.slack_app import run_pipeline_and_reply, run_pipeline_and_reply_assistant
 
 
@@ -471,7 +470,7 @@ class TestProactiveScanner:
         mock_ingest
     ):
         from src.slack_app import handle_message
-        from unittest.mock import ANY
+        # Unused ANY import removed
 
         mock_client = MagicMock()
         mock_say = MagicMock()
