@@ -9,26 +9,32 @@ Every day, as I scroll through social media like Instagram, I see questionable c
 
 I thought: there should be an app or agent where I can just share a link, and it automatically goes out, searches through credible sources, and returns a detailed summary of the claim. When I saw the Slack Agent Builder Challenge on Devpost, it clicked — why not build this exact solution inside Slack? This way, I could implement the idea I had and bring instant verification directly into the workspace where teams share and discuss content.
 
-**Verity is the fact-check button the internet doesn't have** — one paste, one sourced answer, right inside Slack where your team already shares and discusses content.
+**Verity is the fact-check button the internet doesn't have** — autonomously scanning shared links and delivering sourced answers right inside Slack where your team already shares and discusses content.
 
 ---
 
 ## What It Does
 
-Verity is a Slack agent that takes a pasted link or plain-text claim and returns a **sourced, source-quality-weighted verdict** — **True / False / Misleading / Unverifiable** — posted as a threaded Slack reply in under 30 seconds.
+Verity is an autonomous, socially considerate Slack agent designed to curb the spread of misinformation in real-time. Instead of requiring users to manually check every claim, Verity actively works in the background to verify shared content and protect team communication.
 
-**Three input types supported:**
-- **Plain text claim** — paste any factual statement directly
-- **YouTube video link** — Verity fetches the video transcript and checks the spoken claim
-- **Article / news link** — Verity extracts the article body and identifies the checkable claim
+### 1. Headline Feature: Proactive & Socially-Considerate Scanner (Autonomous)
+Verity silently monitors workspace channels for shared links (YouTube videos or news articles). When a user posts a link:
+- Verity automatically runs the verification pipeline in the background.
+- If the source content is verified as **False** or **Misleading**, Verity sends an **ephemeral warning message** in the thread that is **visible only to the user who posted it**.
+- This protects the channel from misinformation while **avoiding public embarrassment** — giving the poster a private opportunity to correct, delete, or address their message.
 
-**What you get back:**
-- Verdict with confidence score (0–100%)
-- Summary of the key evidence
-- Sourced citations with authority tier badges (Tier 1 / Tier 2 / Tier 3)
-- A Slack Canvas full report (persists indefinitely)
-- An entry in the workspace's Slack Lists claim directory
-- Workspace memory — if this claim was previously discussed in Slack, those threads surface automatically
+### 2. Manual Fact-Checking & Deep Dives (Secondary Trigger)
+Users can also interact with Verity directly via the Slack Assistant tab or by mentioning `@Verity`:
+- **Plain text claims**, **YouTube video links**, or **articles** can be pasted to request an on-demand verification.
+- Verity replies with a complete, structured verdict in under 30 seconds.
+
+### What you get back in every report:
+- **Verdict with confidence score** (0–100%)
+- **Concise summary of key evidence**
+- **Sourced citations** with explicit authority tier badges (Tier 1 / Tier 2 / Tier 3)
+- **Slack Canvas full report** that persists indefinitely for the team
+- **Slack Lists claim directory entry** for workspace moderation
+- **Workspace memory** — automatically surfacing any prior Slack discussions of the same claim
 
 ---
 
@@ -90,6 +96,7 @@ All three technologies are used correctly and honestly — each does exactly one
 
 ## Accomplishments We're Proud Of
 
+- **Proactive, socially-considerate autonomous scanning** — Verity listens to channel messages, automatically extracts claims, and warns users *ephemerally* (privately) if a claim is False or Misleading, preventing public embarrassment while safeguarding the channel
 - **Anti-hallucination architecture** — Two-layer protection (whitelist in prompt + structural post-processing filter) means Verity's citations are provably grounded in real search results
 - **Source authority as a named design decision** — The score_authority() function is explicit, inspectable, and testable — not buried middleware
 - **Comparative claim handling** — Comparative claims are recognized and handled as multi-entity comparisons rather than single facts, so the agent reasons about rankings correctly
