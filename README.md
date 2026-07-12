@@ -130,7 +130,33 @@ Create an App-Level Token with the `connections:write` scope and save it as
 
 ---
 
-## 6. Run the Slack app locally
+## 6. Run the Brave Search MCP server locally
+
+The Brave Search MCP server handles the Server-Sent Events (SSE) connection that acts as Verity's core verification engine. 
+
+1. Ensure you have Node.js 18+ installed.
+2. Navigate to the MCP server directory:
+   ```bash
+   cd brave-search-mcp-sse
+   ```
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Create a `.env` file in the `brave-search-mcp-sse` folder containing your Brave Search API key:
+   ```env
+   BRAVE_API_KEY=your_brave_api_key_here
+   PORT=3001
+   ```
+5. Start the server:
+   ```bash
+   npm run dev
+   ```
+   The server will start on `http://localhost:3001`.
+
+---
+
+## 7. Run the Slack app locally
 
 ```bash
 python -m src.slack_app
@@ -141,7 +167,7 @@ development.
 
 ---
 
-## 7. Run the tests
+## 8. Run the tests
 
 ```bash
 pytest

@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  brave-search-mcp:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+      - PORT=3001
+    restart: unless-stopped
