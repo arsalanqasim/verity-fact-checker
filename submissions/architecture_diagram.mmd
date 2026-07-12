@@ -1,0 +1,49 @@
+flowchart TD
+    A[Message posted in Slack] --> B{Entry point}
+    B -->|"User pastes claim/link\n(DM, mention, or Assistant thread)"| C[On-Demand Flow]
+    B -->|"Any link posted in a\nchannel Verity is in"| D[Proactive Flow]
+
+    subgraph PIPELINE["Shared 5-Stage Pipeline"]
+        direction TB
+        S1["Stage 1 — Ingestion\nplain text / YouTube transcript / article body"]
+        S2["Stage 2 — Claim Extraction (Gemini)\nsingle_fact / comparative / causal"]
+        S3["Stage 3 — Agentic Verification Loop\nmanual tool loop, 4-turn cap, dedup guard"]
+        S4["Stage 4 — Verdict Synthesis (Gemini)\nverdict + confidence + sources, JSON schema"]
+        S1 --> S2 --> S3 --> S4
+    end
+
+    subgraph MCP["Brave Search MCP Server (vendored, SSE)"]
+        MCPC[mcp_client.py\nbackground event loop, sync/async bridge]
+        MCPS[brave-search-mcp-sse\nNode/Express + Brave Search API]
+        MCPC <--> MCPS
+    end
+
+    subgraph SAFETY["Structural Safety Layer"]
+        WL["Citation whitelist filter\nremoves any URL not in search results"]
+        FB["Forced-Unverifiable fallback\nif search unreachable, confidence capped at 0.30"]
+    end
+
+    C --> S1
+    D --> S1
+    S3 <--> MCPC
+    S4 --> WL
+    S4 --> FB
+
+    S4 --> E{Verdict}
+
+    E -->|On-Demand| F["Threaded Slack reply\nBlock Kit, color-coded, tiered source badges"]
+    E -->|"Proactive + False/Misleading"| G["Ephemeral private warning\nvisible only to the poster"]
+    E -->|"Proactive + True/Unverifiable"| H[No message sent — silent]
+
+    F --> I["Slack Canvas report\n(persistent full writeup)"]
+    F --> J["Slack Lists entry\n(claim directory)"]
+    G --> I
+    G --> J
+
+    F -.->|"Workspace Memory check\nvia Real-Time Search API"| K["assistant.search.context\nprior discussions of this claim"]
+    K -.-> F
+
+    style D fill:#fff3cd,stroke:#c99a06
+    style G fill:#fff3cd,stroke:#c99a06
+    style SAFETY fill:#f8d7da,stroke:#c0392b
+    style MCP fill:#d4edda,stroke:#2e7d32
