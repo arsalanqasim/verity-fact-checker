@@ -44,7 +44,7 @@ Feasibility spike (2026-07-10, `scripts/ig_spike.py`) confirmed via yt-dlp again
 Note: free tier data may be used by Google to improve their models. Not a concern for this project (claim text is public content being fact-checked, not sensitive user data), but don't route anything private through it.
 
 ## Repo conventions
-- One module per pipeline stage under `src/pipeline/` (`ingestion.py`, `claims.py`, `verification.py`, `verdict.py`)
+- One module per pipeline stage/component under `src/pipeline/` (`ingestion.py`, `claims.py`, `verification.py`, `mcp_client.py`, `reporting.py`, `agent.py`)
 - `src/slack_app.py` — Bolt app entrypoint, event handlers only, no business logic
 - `tests/` mirrors `src/pipeline/`
 - Commit after each working stage, not one giant commit — judges/teammates should be able to see incremental, real progress in git history

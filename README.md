@@ -190,12 +190,18 @@ verity-fact-checker/
 │       ├── ingestion.py      # Stage 1: detect input type, extract text
 │       ├── claims.py         # Stage 2: identify checkable claim(s) via Gemini
 │       ├── verification.py   # Brave Search MCP query + source authority scoring
+│       ├── mcp_client.py     # Background loop event loop transport for MCP client
+│       ├── reporting.py      # Stage 5: create Slack Canvas reports & update Slack Lists
 │       └── agent.py          # Stage 3 & 4: agentic loop + verdict synthesis (Gemini)
 ├── tests/
 │   ├── test_ingestion.py
 │   ├── test_claims.py
 │   ├── test_verification.py
-│   └── test_agent.py
+│   ├── test_mcp_client.py
+│   ├── test_reporting.py
+│   ├── test_agent.py
+│   ├── test_agent_fallback.py
+│   └── test_slack_app.py
 ├── .env.example              # Variable names — copy to .env, never commit .env
 ├── requirements.txt
 └── README.md
