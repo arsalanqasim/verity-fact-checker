@@ -10,6 +10,7 @@ Handler functions are thin: receive Slack event payload, call the
 appropriate pipeline function(s), post/update the formatted reply.
 """
 
+import json
 import logging
 import os
 import re
