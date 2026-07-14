@@ -65,3 +65,36 @@ BRAVE_SEARCH_MCP_URL=
 - Paste a YouTube link → same result, using transcript ingestion.
 - Paste an article link → same result.
 - Architecture diagram accurately reflects what was actually built (not the aspirational version).
+
+## Deployment
+
+Verity is deployed as a two-service architecture using Docker Compose on an Oracle Cloud Ubuntu 24.04 VM.
+
+### Architecture
+1. **mcp-server**:
+   - Builds from the Dockerfile in `brave-search-mcp-sse/Dockerfile`.
+   - Runs the Brave Search MCP SSE server on port 3001.
+   - Exposes port 3001 to the docker-compose network (and optionally host) so the Slack app can communicate with it via SSE.
+2. **slack-worker**:
+   - Builds from `Dockerfile.slack-app` in the repository root.
+   - Runs the main Slack app process via Socket Mode (`python -m src.slack_app`).
+   - Does not expose any public ports (communicates with Slack via persistent outbound WebSocket).
+
+### How to Run via Docker Compose (VM)
+1. **Prerequisites**: Ensure Docker and Docker Compose plugin are installed on the host VM.
+2. **Setup .env**: Place a production `.env` file at the repository root.
+   - Set `MCP_SERVER_URL=http://mcp-server:3001/sse` so the worker communicates with the server over the Docker internal bridge network.
+   - Add all credentials/tokens (`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `GEMINI_API_KEY`, `BRAVE_API_KEY`).
+3. **Build & Start**:
+   ```bash
+   sudo docker compose up -d --build
+   ```
+4. **Logs & Verification**:
+   ```bash
+   sudo docker compose ps
+   sudo docker compose logs -f
+   ```
+
+### Slack App Request URL Configuration
+- Because the Slack app uses **Socket Mode** (via the `SLACK_APP_TOKEN`), it communicates via a persistent outbound websocket connection initiated by the bot.
+- **No Slack App "Request URL" needs updating** when deploying or moving host machines.

@@ -194,11 +194,50 @@ class TestGuards:
         assert result["evidence"] == []
         assert result["error"] is not None
 
-    def test_missing_mcp_url_returns_clear_error(self, monkeypatch):
-        monkeypatch.delenv("BRAVE_SEARCH_MCP_URL", raising=False)
+    def test_mcp_url_fallback_mcp_server_url(self, monkeypatch):
+        recorded_urls = []
+        def mock_call_tool(url, tool_name, args, **kwargs):
+            recorded_urls.append(url)
+            return []
+        monkeypatch.setattr("src.pipeline.verification.mcp_call_tool", mock_call_tool)
+        monkeypatch.setenv("MCP_SERVER_URL", "http://mcp-server-custom:5000/sse")
+        monkeypatch.setenv("BRAVE_SEARCH_MCP_URL", "http://brave-mcp-custom:6000/sse")
+        monkeypatch.delenv("SLACK_USER_TOKEN", raising=False)
+        
         result = verify_claim("The sky is blue", "single_fact")
-        assert result["success"] is False
-        assert "BRAVE_SEARCH_MCP_URL" in result["error"]
+        assert result["success"] is True
+        assert len(recorded_urls) > 0
+        assert all(url == "http://mcp-server-custom:5000/sse" for url in recorded_urls)
+
+    def test_mcp_url_fallback_brave_search_mcp_url(self, monkeypatch):
+        recorded_urls = []
+        def mock_call_tool(url, tool_name, args, **kwargs):
+            recorded_urls.append(url)
+            return []
+        monkeypatch.setattr("src.pipeline.verification.mcp_call_tool", mock_call_tool)
+        monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+        monkeypatch.setenv("BRAVE_SEARCH_MCP_URL", "http://brave-mcp-custom:6000/sse")
+        monkeypatch.delenv("SLACK_USER_TOKEN", raising=False)
+        
+        result = verify_claim("The sky is blue", "single_fact")
+        assert result["success"] is True
+        assert len(recorded_urls) > 0
+        assert all(url == "http://brave-mcp-custom:6000/sse" for url in recorded_urls)
+
+    def test_mcp_url_fallback_neither_set(self, monkeypatch):
+        recorded_urls = []
+        def mock_call_tool(url, tool_name, args, **kwargs):
+            recorded_urls.append(url)
+            return []
+        monkeypatch.setattr("src.pipeline.verification.mcp_call_tool", mock_call_tool)
+        monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+        monkeypatch.delenv("BRAVE_SEARCH_MCP_URL", raising=False)
+        monkeypatch.delenv("SLACK_USER_TOKEN", raising=False)
+        
+        result = verify_claim("The sky is blue", "single_fact")
+        assert result["success"] is True
+        assert len(recorded_urls) > 0
+        assert all(url == "http://localhost:3001/sse" for url in recorded_urls)
 
 
 # ---------------------------------------------------------------------------

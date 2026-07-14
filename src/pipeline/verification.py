@@ -527,18 +527,18 @@ def verify_claim(
             "error": "Claim was empty."
         }
 
-    mcp_url = os.environ.get("BRAVE_SEARCH_MCP_URL", "").strip()
+    mcp_url = os.environ.get("MCP_SERVER_URL", "").strip()
     if not mcp_url:
-        return {
-            "evidence": [],
-            "workspace_discussions": search_workspace_history(claim.strip()),
-            "success": False,
-            "error": (
-                "BRAVE_SEARCH_MCP_URL is not set. Start the Brave Search MCP "
-                "server and set this env var to its SSE endpoint "
-                "(e.g. http://localhost:3001/sse)."
-            ),
-        }
+        mcp_url = os.environ.get("BRAVE_SEARCH_MCP_URL", "").strip()
+    if not mcp_url:
+        mcp_url = "http://localhost:3001/sse"
+
+    # Normalize URL to ensure correct protocol and sse path format
+    if mcp_url:
+        if not (mcp_url.startswith("http://") or mcp_url.startswith("https://")):
+            mcp_url = f"http://{mcp_url}"
+        if not mcp_url.endswith("/sse"):
+            mcp_url = mcp_url.rstrip("/") + "/sse"
 
     try:
         res = _verify_sync(mcp_url, claim.strip(), claim_type, compared_items)

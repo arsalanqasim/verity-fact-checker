@@ -1,0 +1,35 @@
+services:
+  # 1. Brave Search MCP SSE Server
+  - type: web
+    name: mcp-server
+    runtime: docker
+    dockerfilePath: ./brave-search-mcp-sse/Dockerfile
+    dockerContext: ./brave-search-mcp-sse
+    plan: free
+    envVars:
+      - key: BRAVE_API_KEY
+        sync: false # Set manually in Render dashboard
+      - key: PORT
+        value: 3001
+
+  # 2. Verity Slack App Background Worker
+  - type: worker
+    name: slack-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.slack-app
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SLACK_BOT_TOKEN
+        sync: false # Set manually in Render dashboard
+      - key: SLACK_SIGNING_SECRET
+        sync: false # Set manually in Render dashboard
+      - key: SLACK_APP_TOKEN
+        sync: false # Set manually in Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false # Set manually in Render dashboard
+      - key: MCP_SERVER_URL
+        fromService:
+          type: web
+          name: mcp-server
+          property: hostport
