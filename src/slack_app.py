@@ -427,7 +427,7 @@ def get_home_tab_view() -> dict:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "Welcome to **Verity**, your native AI fact-checking assistant! Verity helps you verify links, video transcripts, or text claims in real-time."
+                "text": "Welcome to *Verity*, your native AI fact-checking assistant! Verity helps you verify links, video transcripts, or text claims in real-time."
             }
         },
         {
@@ -470,8 +470,8 @@ def get_home_tab_view() -> dict:
             "text": {
                 "type": "mrkdwn",
                 "text": "*How to Use Verity:*\n"
-                "1️⃣ **Assistant Tab:** Click the **Assistant** tab at the top of this screen to chat with Verity. Paste a link (YouTube or article) or write any claim.\n"
-                "2️⃣ **Mentions:** Mention `@Verity` in any channel thread to verify messages in public discussions."
+                "1️⃣ *Mentions:* Mention `@Verity` in any channel thread to verify text claims, article links, or YouTube videos.\n"
+                "2️⃣ *Proactive Scanning:* When enabled above, Verity automatically scans public channels for YouTube or article links and warns the posting user ephemerally if the claim is found to be False or Misleading."
             }
         },
         {
@@ -783,8 +783,11 @@ def handle_check_sample_claim(ack, body, client):
     """Run a claim check in a background thread and render the verdict in a modal."""
     ack()
     
-    trigger_id = body["trigger_id"]
-    claim = body["actions"][0]["value"]
+    trigger_id = body.get("trigger_id")
+    actions = body.get("actions", [])
+    claim = actions[0].get("value") if actions else "Unknown Claim"
+    
+    logger.info(f"handle_check_sample_claim triggered. claim: '{claim}'")
     
     # Define initial loading modal view
     initial_view = {
@@ -815,12 +818,28 @@ def handle_check_sample_claim(ack, body, client):
         ]
     }
     
+    view_id = None
     try:
-        res = client.views_open(trigger_id=trigger_id, view=initial_view)
-        view_id = res["view"]["id"]
+        if trigger_id:
+            res = client.views_open(trigger_id=trigger_id, view=initial_view)
+            view_id = res["view"]["id"]
+            logger.info(f"Successfully opened loading modal. view_id: {view_id}")
+        else:
+            logger.warning("No trigger_id found in body; skipping modal opening.")
     except Exception as exc:
-        logger.error(f"Error opening demo modal: {exc}")
-        return
+        logger.error(f"Slack API error during views_open: {exc}", exc_info=True)
+        # Fallback to ephemeral message if views_open fails
+        user_id = body.get("user", {}).get("id")
+        channel_id = body.get("channel", {}).get("id") or user_id
+        if user_id:
+            try:
+                client.chat_postEphemeral(
+                    channel=channel_id,
+                    user=user_id,
+                    text=f"⚠️ Could not open modal: {exc}. Running the check in the background..."
+                )
+            except Exception as post_exc:
+                logger.error(f"Failed to post fallback ephemeral message for views_open failure: {post_exc}", exc_info=True)
 
     def run_check():
         try:
@@ -849,7 +868,28 @@ def handle_check_sample_claim(ack, body, client):
             # Build Modal Blocks (filtering out any top-level header block)
             verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
             filtered_blocks = [b for b in verdict_blocks if b.get("type") != "header"]
-
+            
+            # Safely truncate action button values (e.g. summary) to stay well under the 2000 character limit
+            verdict = agent_res.get("verdict", "Unverifiable")
+            summary = agent_res.get("summary", "")
+            max_summary_len = 1500 - len(extracted_claim) - (len(canvas_url) if canvas_url else 0)
+            if max_summary_len < 100:
+                max_summary_len = 100
+            truncated_summary = summary if len(summary) <= max_summary_len else summary[:max_summary_len] + "..."
+            
+            action_payload = {
+                "claim": extracted_claim,
+                "verdict": verdict,
+                "summary": truncated_summary,
+                "canvas_url": canvas_url
+            }
+            
+            # Update the blocks to ensure the payload is safe
+            for block in filtered_blocks:
+                if block.get("type") == "actions":
+                    for element in block.get("elements", []):
+                        if element.get("action_id") == "share_verdict":
+                            element["value"] = json.dumps(action_payload)
             
             final_view = {
                 "type": "modal",
@@ -864,34 +904,59 @@ def handle_check_sample_claim(ack, body, client):
                 "blocks": filtered_blocks
             }
             
-            client.views_update(view_id=view_id, view=final_view)
+            if view_id:
+                client.views_update(view_id=view_id, view=final_view)
+                logger.info(f"Successfully updated modal view {view_id}")
+            else:
+                # Ephemeral fallback response
+                channel_id_fallback = channel_id or user_id
+                if user_id:
+                    client.chat_postEphemeral(
+                        channel=channel_id_fallback,
+                        user=user_id,
+                        blocks=filtered_blocks,
+                        text=f"⚖️ Verity Live Check Result: {verdict}"
+                    )
+                    logger.info("Sent result ephemerally as fallback.")
             
         except Exception as exc:
             logger.error(f"Error in modal live check: {exc}", exc_info=True)
-            error_view = {
-                "type": "modal",
-                "title": {
-                    "type": "plain_text",
-                    "text": "Verity Error"
-                },
-                "close": {
-                    "type": "plain_text",
-                    "text": "Close"
-                },
-                "blocks": [
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f"❌ An error occurred during the live check:\n> {exc}"
+            if view_id:
+                error_view = {
+                    "type": "modal",
+                    "title": {
+                        "type": "plain_text",
+                        "text": "Verity Error"
+                    },
+                    "close": {
+                        "type": "plain_text",
+                        "text": "Close"
+                    },
+                    "blocks": [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": f"❌ An error occurred during the live check:\n> {exc}"
+                            }
                         }
-                    }
-                ]
-            }
-            try:
-                client.views_update(view_id=view_id, view=error_view)
-            except Exception:
-                pass
+                    ]
+                }
+                try:
+                    client.views_update(view_id=view_id, view=error_view)
+                except Exception as update_exc:
+                    logger.error(f"Failed to update error modal view: {update_exc}", exc_info=True)
+            else:
+                channel_id_fallback = channel_id or user_id
+                if user_id:
+                    try:
+                        client.chat_postEphemeral(
+                            channel=channel_id_fallback,
+                            user=user_id,
+                            text=f"❌ An error occurred during the live check:\n> {exc}"
+                        )
+                    except Exception as post_exc:
+                        logger.error(f"Failed to post error ephemeral message: {post_exc}", exc_info=True)
 
     threading.Thread(target=run_check, daemon=True).start()
 
@@ -915,8 +980,8 @@ def handle_thread_started(say, set_suggested_prompts):
     
     say(
         text=(
-            "👋 Hello! I am **Verity**, your workspace fact-checking assistant.\n\n"
-            "Send me a **factual claim** or **link** (YouTube video or news article) to verify it. "
+            "👋 Hello! I am *Verity*, your workspace fact-checking assistant.\n\n"
+            "Send me a *factual claim* or *link* (YouTube video or news article) to verify it. "
             "I will query Brave Search MCP, weight the evidence by authority tier, and post a verdict.\n\n"
             "What claim would you like to check?"
         )
