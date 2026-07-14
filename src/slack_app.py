@@ -869,16 +869,21 @@ def handle_check_sample_claim(ack, body, client):
             verdict_blocks = format_verdict_blocks(extracted_claim, agent_res, workspace_discussions, canvas_url, search_succeeded=agent_res.get("search_succeeded", True))
             filtered_blocks = [b for b in verdict_blocks if b.get("type") != "header"]
             
-            # Safely truncate action button values (e.g. summary) to stay well under the 2000 character limit
+            # Safely truncate action button values to stay well under the 2000 character limit in all edge cases
             verdict = agent_res.get("verdict", "Unverifiable")
             summary = agent_res.get("summary", "")
-            max_summary_len = 1500 - len(extracted_claim) - (len(canvas_url) if canvas_url else 0)
+            
+            # Truncate claim to maximum 400 characters if it's exceptionally long
+            truncated_claim = extracted_claim if len(extracted_claim) <= 400 else extracted_claim[:400] + "..."
+            
+            # Calculate dynamic budget for summary based on the actual lengths of other fields, ensuring max 1500 chars total
+            max_summary_len = 1500 - len(truncated_claim) - (len(canvas_url) if canvas_url else 0)
             if max_summary_len < 100:
                 max_summary_len = 100
             truncated_summary = summary if len(summary) <= max_summary_len else summary[:max_summary_len] + "..."
             
             action_payload = {
-                "claim": extracted_claim,
+                "claim": truncated_claim,
                 "verdict": verdict,
                 "summary": truncated_summary,
                 "canvas_url": canvas_url
